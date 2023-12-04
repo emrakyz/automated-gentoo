@@ -53,7 +53,7 @@ URL_UDHCPC_INIT="https://raw.githubusercontent.com/emrakyz/dotfiles/main/udhcpc"
 URL_LOCAL="https://github.com/emrakyz/local.git"
 
 # DEFINE DIRS HERE #
-FILES_DIR="./files"
+FILES_DIR="/root/files"
 PORTAGE_DIR="/etc/portage"
 PORTAGE_PROFILE_DIR="/etc/portage/profile"
 PORTAGE_ENV_DIR="/etc/portage/env"
@@ -65,7 +65,7 @@ KERNEL_PATH="/boot/EFI/BOOT/BOOTX64.EFI"
 BUSYBOX_CONFIG_DIR="/etc/portage/savedconfig/sys-apps"
 UDHCPC_INIT_DIR="/etc/init.d"
 UDHCPC_SCRIPT_DIR="/etc/udhcpc"
-LOCAL_REPO_DIR="/var/db/repos"
+LOCAL_REPO_DIR="/var/db/repos/local"
 
 # Fail Fast & Fail Safe on errors and stop.
 set -Eeo pipefail
@@ -233,7 +233,7 @@ update_associations() {
     associate_f "busybox-9999" "$URL_BUSYBOX_CONFIG" "$BUSYBOX_CONFIG_DIR"
     associate_f "default.script" "$URL_DEFAULT_SCRIPT" "$UDHCPC_SCRIPT_DIR"
     associate_f "udhcpc" "$URL_UDHCPC_INIT" "$UDHCPC_INIT_DIR"
-    associate_f "local" "$URL_LOCAL" "$LOCAL_REPO_DIR"
+    associate_f "local" "$URL_LOCAL"
     associate_f "install-tl-unx.tar.gz" "$URL_TEXLIVE_INSTALL"
 }
 
@@ -764,7 +764,7 @@ configure_repos() {
     eselect repository create "local"
 
     # We place the local repos we downloaded.
-    move_file "local"
+    mv -f "$FILES_DIR"/local/* "$LOCAL_REPO_DIR"
 
     # Create manifests for all local ebuilds.
     find "$LOCAL_REPO_DIR" -type f -name "*.ebuild" -exec ebuild {} manifest \;
@@ -796,7 +796,7 @@ install_dependencies() {
     DEPLIST="$(sed -e 's/#.*$//' -e '/^$/d' "$FILES_DIR"/dependencies.txt | tr '\n' ' ')"
 
     # Now we can install the dependencies.
-    emerge "$DEPLIST"
+    emerge $DEPLIST
 }
 
 # We need to add the empty variables now since we have the $USERNAME.
@@ -867,7 +867,7 @@ configure_librewolf() {
     # We need to make Arkenfox.js script executable.
     # And the user needs to own the .librewolf directory.
     chmod +x "$LIBREW_PROF_DIR"/updater.sh
-    chown -R "$USERNAME":"$USERNAME" "$USER_HOME"/.librewolf
+    chown -R "$USERNAME":"$USERNAME" "$USER_HOME"
 
     # Run the Arkenfox.js script to apply the configuration files.
     doas -u "$USERNAME" "$LIBREW_PROF_DIR"/updater.sh -s -u
@@ -960,6 +960,8 @@ create_boot_entry() {
     # we extract them using logic distinctively for nvme and sd disks.
     # For /dev/nvme0n1p1, DISK should output /dev/nvme0n1 and
     # For PARTITION it should output p1.
+    emerge --oneshot sys-boot/efibootmgr
+
     DISK="$(echo "$PARTITION_BOOT" | grep -q 'nvme' && {
         echo "$PARTITION_BOOT" | sed -E 's/(nvme[0-9]+n[0-9]+).*/\1/'
     } || {
@@ -973,10 +975,14 @@ create_boot_entry() {
     })"
 
     efibootmgr -c -d /dev/"$DISK" -p "$PARTITION" -L "gentoo_hyprland" -l '\EFI\BOOT\BOOTX64.EFI'
+
+    emerge --oneshot sys-boot/efibootmgr
+    emerge --depclean
 }
 
 clean_and_finish() {
     rm -rf "$FILES_DIR" /var/log/* /var/cache/* /var/tmp/* /root/*
+    rm -rf "$USER_HOME"/.bash*
 }
 
 # Main function for the script. It informs us on every step with colored logs.
@@ -1086,41 +1092,45 @@ main() {
     log_info "00 - Done! Nvidia modules added to boottime."
     }
 
-    log_info "25 - Initiating the new variables..."
+    log_info "25 - Installing world packages..."
+    install_dependencies
+    log_info "Done! World packages have been installed."
+
+    log_info "26 - Initiating the new variables..."
     initiate_new_vars
-    log_info "25 - Done! New variables have been created."
+    log_info "26 - Done! New variables have been created."
 
-    log_info "26 - Placing the dotfiles..."
+    log_info "27 - Placing the dotfiles..."
     place_dotfiles
-    log_info "26 - Done! Dotfiles have been placed."
+    log_info "27 - Done! Dotfiles have been placed."
 
-    log_info "27 - Configuring fonts..."
+    log_info "28 - Configuring fonts..."
     configure_fonts
-    log_info "27 - Done! Fonts have been configured."
+    log_info "28 - Done! Fonts have been configured."
 
-    log_info "28 - Configuring Librewolf settings..."
+    log_info "29 - Configuring Librewolf settings..."
     configure_librewolf
-    log_info "28 - Done! Librewolf has been configured."
+    log_info "29 - Done! Librewolf has been configured."
 
-    log_info "29 - Installing the terminal file manager lf..."
+    log_info "30 - Installing the terminal file manager lf..."
     install_lf
-    log_info "29 - Done! Lf has been installed."
+    log_info "30 - Done! Lf has been installed."
 
-    log_info "30 - Installing TexLive"
+    log_info "31 - Installing TexLive"
     install_texlive
-    log_info "30 - Done! TexLive has been installed."
+    log_info "31 - Done! TexLive has been installed."
 
-    log_info "31 - Configuring shell settings."
+    log_info "32 - Configuring shell settings."
     configure_shell
-    log_info "31 - Done! Shell settings have been configured."
+    log_info "32 - Done! Shell settings have been configured."
 
-    log_info "32 - Creating the boot entry."
+    log_info "33 - Creating the boot entry."
     create_boot_entry
     log_info "33 - Done! The boot entry has been created."
 
-    log_info "33 - Attempting final system cleanup and finishing the installation..."
+    log_info "34 - Attempting final system cleanup and finishing the installation..."
     clean_and_finish
-    log_info "33 - Gentoo Installation has finished successfully. You can reboot with \"openrc-shutdown -r now\" command."
+    log_info "34 - Gentoo Installation has finished successfully. You can reboot with \"openrc-shutdown -r now\" command."
 }
 
 main
