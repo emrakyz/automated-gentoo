@@ -399,7 +399,7 @@ configure_portage() {
       echo "EMERGE_DEFAULT_OPTS=\"--jobs=1 --load-average=$(( $(nproc) - 2)) --keep-going --verbose --quiet-build --with-bdeps=y --complete-graph=y --deep\""
 
       # Disable default use flags and add sane defaults.
-      echo "USE=\"-* minimal wayland pipewire clang native-symlinks lto pgo jit xs orc threads asm openmp libedit system-man system-libyaml system-lua system-bootstrap system-llvm system-lz4 system-sqlite system-ffmpeg system-icu system-av1 system-harfbuzz system-jpeg system-libevent system-librnp system-libvpx system-png system-python-libs system-webp system-ssl system-zlib system-boost\""
+      echo "USE=\"-* minimal wayland pipewire clang native-symlinks lto pgo jit xs orc threads asm openmp libedit custom-cflags system-man system-libyaml system-lua system-bootstrap system-llvm system-lz4 system-sqlite system-ffmpeg system-icu system-av1 system-harfbuzz system-jpeg system-libevent system-librnp system-libvpx system-png system-python-libs system-webp system-ssl system-zlib system-boost\""
 
       # Some default self-defining features for Portage.
       echo "FEATURES=\"candy fixlafiles unmerge-orphans nodoc noinfo notitles parallel-install parallel-fetch clean-logs\""
