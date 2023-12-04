@@ -954,6 +954,31 @@ configure_shell() {
     move_file powerlevel10k
 }
 
+# Create an UEFI boot entry using efibootmgr.
+create_boot_entry() {
+    # efibootmgr uses separate disk and partition numbers.
+    # we extract them using logic distinctively for nvme and sd disks.
+    # For /dev/nvme0n1p1, DISK should output /dev/nvme0n1 and
+    # For PARTITION it should output p1.
+    DISK="$(echo "$PARTITION_BOOT" | grep -q 'nvme' && {
+        echo "$PARTITION_BOOT" | sed -E 's/(nvme[0-9]+n[0-9]+).*/\1/'
+    } || {
+        echo "$PARTITION_BOOT" | sed -E 's/(sd[a-zA-Z]+).*/\1/'
+    })"
+
+    PARTITION="$(echo "$PARTITION_BOOT" | grep -q 'nvme' && {
+        echo "$PARTITION_BOOT" | sed -E 's/.*nvme[0-9]+n[0-9]+(p[0-9]+)$/\1/'
+    } || {
+        echo "$PARTITION_BOOT" | sed -E 's/.*sd[a-zA-Z]*([0-9]+)$/\1/'
+    })"
+
+    efibootmgr -c -d /dev/"$DISK" -p "$PARTITION" -L "gentoo_hyprland" -l '\EFI\BOOT\BOOTX64.EFI'
+}
+
+clean_and_finish() {
+    rm -rf "$FILES_DIR" /var/log/* /var/cache/* /var/tmp/* /root/*
+}
+
 # Main function for the script. It informs us on every step with colored logs.
 # So we know which step we are at, and if we succeeded. Since we have set -Eeo
 # pipefail command enabled. The script only runs the success message if the
@@ -1088,6 +1113,14 @@ main() {
     log_info "31 - Configuring shell settings."
     configure_shell
     log_info "31 - Done! Shell settings have been configured."
+
+    log_info "32 - Creating the boot entry."
+    create_boot_entry
+    log_info "33 - Done! The boot entry has been created."
+
+    log_info "33 - Attempting final system cleanup and finishing the installation..."
+    clean_and_finish
+    log_info "33 - Gentoo Installation has finished successfully. You can reboot with \"openrc-shutdown -r now\" command."
 }
 
 main
