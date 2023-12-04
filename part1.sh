@@ -2,7 +2,9 @@
 
 mkdir --parents /mnt/gentoo
 
-mount /dev/nvme0n1p2 /mnt/gentoo
+read -rp "Enter the Root Partition (e.g /dev/nvme0n1p2): " PARTITION_ROOT
+
+mount "$PARTITION_ROOT" /mnt/gentoo
 
 cd /mnt/gentoo
 
