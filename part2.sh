@@ -53,11 +53,11 @@ URL_UDHCPC_INIT="https://raw.githubusercontent.com/emrakyz/dotfiles/main/udhcpc"
 URL_LOCAL="https://github.com/emrakyz/local.git"
 
 # DEFINE DIRS HERE #
-FILES_DIR="/root/files"
+FILES_DIR="./files"
 PORTAGE_DIR="/etc/portage"
 PORTAGE_PROFILE_DIR="/etc/portage/profile"
 PORTAGE_ENV_DIR="/etc/portage/env"
-LIBREW_PROF_DIR="" # This will be defined later.
+LIBREW_PROF_DIR=""
 LIBREW_CHROME_DIR="$LIBREW_PROF_DIR/chrome"
 LINUX_DIR="/usr/src/linux"
 NEW_KERNEL="$LINUX_DIR/arch/x86/boot/bzImage"
@@ -100,6 +100,14 @@ trap 'handle_error' RETURN
 prepare_env() {
     source /etc/profile
     export PS1="(chroot) ${PS1}"
+}
+
+# Sync the Gentoo Repositories with the newest ones.
+# We also need Git in order to pull our repositories.
+sync_repos() {
+    emerge --sync --quiet
+
+    emerge dev-vcs/git
 }
 
 # Collect the first needed variables.
@@ -327,11 +335,6 @@ check_files() {
 # This command used several times in order to renew the environment after some changes.
 renew_env() {
     env-update && source /etc/profile && export PS1="(chroot) ${PS1}"
-}
-
-# Sync the Gentoo Repositories with the newest ones.
-sync_repos() {
-    emerge --sync --quiet
 }
 
 # Configure the localization settings.
@@ -670,16 +673,13 @@ configure_udhcpc() {
     # This version of udhcpc does not even touch /etc/resolv.conf
     # So we create it with the DNS we want. We can use Quad9 DNS
     # known for privacy, security and speed.
-    { echo "9.9.9.9"
-      echo "149.112.112.112"
+    { echo "nameserver 9.9.9.9"
+      echo "nameserver 149.112.112.112"
     } > /etc/resolv.conf
 
     # The scripts for udhcpc should be executable.
     chmod +x "$UDHCPC_SCRIPT_DIR"/default.script
     chmod +x "$UDHCPC_INIT_DIR"/udhcpc
-
-    # Unmerge the default dhcpcd.
-    emerge --unmerge net-misc/dhcpcd
 
     # Activate udhcpc service and start it.
     rc-update add udhcpc default
@@ -744,7 +744,7 @@ configure_accounts() {
 # Additionally, we will create our local repository.
 configure_repos() {
     # We need these packages in order to use git sync and enable repos.
-    emerge app-eselect/eselect-repository dev-vcs/git
+    emerge app-eselect/eselect-repository
 
     # Remove the default Gentoo repos.
     eselect repository remove gentoo
@@ -963,33 +963,33 @@ main() {
     prepare_env
     log_info "01 - Done! /etc/profile has been sourced."
 
-    log_info "02 - Collecting the first needed variables..."
-    collect_variables
-    log_info "02 - Done! Variables have been collected."
-
-    log_info "03 - Checking the variables..."
-    check_first_vars
-    log_info "03 - Done! Variables are okay."
-
-    log_info "04 - Collecting the credentials..."
-    collect_credentials
-    log_info "04 - Done! Credentials have been collected."
-
-    log_info "05 - Checking the credentials..."
-    check_credentials
-    log_info "05 - Done! Credentials are okay."
-
-    log_info "06 - Retrieving the needed files..."
-    retrieve_files
-    log_info "06 - Done! All needed files are retrieved."
-
-    log_info "07 - Checking the files for safety..."
-    check_files
-    log_info "07 - Done! All needed files are present."
-
-    log_info "08 - Syncing the Gentoo Repositories..."
+    log_info "02 - Syncing the Gentoo Repositories..."
     sync_repos
-    log_info "08 - Done! Gentoo Repositories have been synced."
+    log_info "02 - Done! Gentoo Repositories have been synced."
+
+    log_info "03 - Collecting the first needed variables..."
+    collect_variables
+    log_info "03 - Done! Variables have been collected."
+
+    log_info "04 - Checking the variables..."
+    check_first_vars
+    log_info "04 - Done! Variables are okay."
+
+    log_info "05 - Collecting the credentials..."
+    collect_credentials
+    log_info "05 - Done! Credentials have been collected."
+
+    log_info "06 - Checking the credentials..."
+    check_credentials
+    log_info "06 - Done! Credentials are okay."
+
+    log_info "07 - Retrieving the needed files..."
+    retrieve_files
+    log_info "07 - Done! All needed files are retrieved."
+
+    log_info "08 - Checking the files for safety..."
+    check_files
+    log_info "08 - Done! All needed files are present."
 
     log_info "09 - Configuring the locales..."
     configure_locales
