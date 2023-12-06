@@ -152,7 +152,7 @@ start_process() {
     mkdir -p "$EXT_DIR"
 
     # These are the extensions we want to download.
-    ADDON_NAMES=("ublock-origin" "istilldontcareaboutcookies" "vimium-ff" "minimalist-open-in-mpv" "darkreader")
+    ADDON_NAMES=("ublock-origin" "istilldontcareaboutcookies" "vimium-ff" "minimalist-open-in-mpv" "darkreader" "load-reddit-images-directly")
 
     # For loop to download, extract, modify and move all extension properly.
     # Loop all listed addons.
