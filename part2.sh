@@ -21,13 +21,7 @@ URL_GCC_O3_LTO="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/
 URL_GCC_O3_LTO_FFATLTO="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/env/gcc_o3_lto_ffatlto"
 URL_GCC_O3_NOLTO="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/env/gcc_o3_nolto"
 # LINUX KERNEL CONFIGURATION #
-URL_KERNEL_CONFIG="https://raw.githubusercontent.com/emrakyz/dotfiles/main/kernel_6_6_2_config"
-# FIREFOX RELATED #
-URL_USER_JS="https://raw.githubusercontent.com/arkenfox/user.js/master/user.js"
-URL_UPDATER_SH="https://raw.githubusercontent.com/arkenfox/user.js/master/updater.sh"
-URL_USER_OVERRIDES_JS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/user-overrides.js"
-URL_USERCHROME_CSS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/userChrome.css"
-URL_USERCONTENT_CSS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/userContent.css"
+URL_KERNEL_CONFIG="https://raw.githubusercontent.com/emrakyz/dotfiles/main/kernel_6_6_4_config"
 URL_TEXLIVE_PROFILE="https://raw.githubusercontent.com/emrakyz/dotfiles/main/texlive.profile"
 URL_TEXLIVE_INSTALL="https://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz"
 # ZSH PLUGINS #
@@ -35,16 +29,11 @@ URL_FZF_TAB="https://github.com/Aloxaf/fzf-tab.git"
 URL_ZSH_AUTOSUGGESTIONS="https://github.com/zsh-users/zsh-autosuggestions.git"
 URL_SYNTAX_HIGHLIGHT="https://github.com/zdharma-continuum/fast-syntax-highlighting.git"
 URL_POWERLEVEL10K="https://github.com/romkatv/powerlevel10k.git"
-# UBLOCK SETTINGS BACKUP #
-URL_UBLOCK_BACKUP="https://raw.githubusercontent.com/emrakyz/dotfiles/main/ublock_backup.txt"
+URL_WAL_VIM="https://raw.githubusercontent.com/emrakyz/dotfiles/main/wal.vim"
 # BLACKLISTED ADRESSES TO BLOCK #
 # THE BELOW LINK BLACKLISTS ADWARE, #
 # MALWARE, FAKENEWS, GAMBLING, PORN, SOCIAL MEDIA #
 URL_HOSTS_BLACKLIST="https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn-social/hosts"
-# TELEGRAM WEBCORD UPSCAYL #
-URL_TELEGRAM_TAR_XZ="https://telegram.org/dl/desktop/linux"
-URL_WEBCORD_APPIMAGE="https://github.com/SpacingBat3/WebCord/releases/download/v4.5.2/WebCord-4.5.2-x64.AppImage"
-URL_UPSCAYL_APPIMAGE="https://github.com/upscayl/upscayl/releases/download/v2.9.1/upscayl-2.9.1-linux.AppImage"
 # Settings for Busybox to only enable udhcpc and its scripts.
 URL_BUSYBOX_CONFIG="https://raw.githubusercontent.com/emrakyz/dotfiles/main/busybox-9999"
 URL_DEFAULT_SCRIPT="https://raw.githubusercontent.com/emrakyz/dotfiles/main/default.script"
@@ -53,12 +42,11 @@ URL_UDHCPC_INIT="https://raw.githubusercontent.com/emrakyz/dotfiles/main/udhcpc"
 URL_LOCAL="https://github.com/emrakyz/local.git"
 
 # DEFINE DIRS HERE #
+# FILES_DIR is a temporary directory to put the above downloaded files.
 FILES_DIR="/root/files"
 PORTAGE_DIR="/etc/portage"
 PORTAGE_PROFILE_DIR="/etc/portage/profile"
 PORTAGE_ENV_DIR="/etc/portage/env"
-LIBREW_PROF_DIR=""
-LIBREW_CHROME_DIR="$LIBREW_PROF_DIR/chrome"
 LINUX_DIR="/usr/src/linux"
 NEW_KERNEL="$LINUX_DIR/arch/x86/boot/bzImage"
 KERNEL_PATH="/boot/EFI/BOOT/BOOTX64.EFI"
@@ -70,18 +58,30 @@ LOCAL_REPO_DIR="/var/db/repos/local"
 # Fail Fast & Fail Safe on errors and stop.
 set -Eeo pipefail
 
-# Create a logfile to inspect later if needed.
-exec > >(tee -a logfile.txt) 2>&1
+# Use HIGHLIGHTED-BOLD color variants for our logs.
+GREEN='\e[1;92m' RED='\e[1;91m' BLUE='\e[1;94m'
+PURPLE='\e[1;95m' YELLOW='\e[1;93m' NC='\033[0m'
+CYAN='\e[1;96m' WHITE='\e[1;97m'
 
-# Custom logging function for better readability.
 log_info() {
-    # ANSI escape code for cyan color.
-    local CYAN='\033[0;36m'
-    # ANSI escape code to reset color.
-    local NC='\033[0m' # No Color.
+    sleep 0.3
 
-    # Display the entire message in cyan.
-    echo -e "${CYAN}$(date '+%Y-%m-%d %H:%M:%S') INFO: $1${NC}"
+    # Choose color based on input.
+    case $1 in
+        g) COLOR=$GREEN MESSAGE='DONE!' ;;
+        r) COLOR=$RED MESSAGE='WARNING!' ;;
+        b) COLOR=$BLUE MESSAGE="STARTING..." ;;
+        c) COLOR=$BLUE MESSAGE="RUNNING..." ;;
+    esac
+
+    # If the message doesn't start with a task counter format, use the global TASK_NUMBER and TOTAL_TASKS
+    COLORED_TASK_INFO="${WHITE}(${CYAN}${TASK_NUMBER}${PURPLE}/${CYAN}${TOTAL_TASKS}${WHITE})"
+    MESSAGE_WITHOUT_TASK_NUMBER="$2"
+
+    FULL_LOG="${CYAN}[${PURPLE}$(date '+%Y-%m-%d '${CYAN}'/'${PURPLE}' %H:%M:%S')${CYAN}] ${YELLOW}>>>${COLOR}$MESSAGE${YELLOW}<<< $COLORED_TASK_INFO - ${COLOR}$MESSAGE_WITHOUT_TASK_NUMBER${NC}"
+
+    # Display the message. If the message is for the current task then append a new line to increase readibility.
+    { [[ $1 = c ]] && echo -e "\n\n$FULL_LOG"; } || echo -e "$FULL_LOG"
 }
 
 # Error handler function. This will show which command failed.
@@ -89,100 +89,231 @@ handle_error () {
     error_status=$?
     command_line=${BASH_COMMAND}
     error_line=${BASH_LINENO[0]}
-    echo "$(date '+%Y-%m-%d %H:%M:%S') Error on line $error_line: command '${command_line}' exited with status: $error_status" |
-    tee -a error.log.txt
+    log_info r "Error on line ${BLUE}$error_line${RED}: command ${BLUE}'${command_line}'${RED} exited with status: ${BLUE}$error_status" |
+    tee -a error_log.txt
 }
 
 trap 'handle_error' ERR
 trap 'handle_error' RETURN
 
+cleanup_logs() {
+    [ -f "logfile.txt" ] && sed -i 's/\x1b\[[0-9;]*m//g; s/\r//g' logfile.txt
+    sed -i 's/\x1b\[[0-9;]*m//g' error_log.txt
+}
+
+trap cleanup_logs EXIT
+
 # Prepare the environment.
 prepare_env() {
     source /etc/profile
-    export PS1="(chroot) ${PS1}"
+ #   export PS1="(chroot) ${PS1}"
 }
 
-# Sync the Gentoo Repositories with the newest ones.
-# We also need Git in order to pull our repositories.
-sync_repos() {
-    emerge --sync --quiet
+show_options_grid() {
+    local options=("$@")
+    for i in "${!options[@]}"; do
+        printf "${YELLOW}%2d) ${PURPLE}%-15s${NC}" "$((i + 1))" "${options[i]}"
+        (( (i + 1) % 3 == 0 )) && echo
+    done
+    (( ${#options[@]} % 3 != 0 )) && echo
+}
 
-    emerge dev-vcs/git
+select_timezone() {
+    while true; do
+        regions=($(find /usr/share/zoneinfo/* -maxdepth 0 -type d -exec basename {} \; | grep -vE 'Arctic|Antarctica|Etc'))
+        show_options_grid "${regions[@]}"
+        echo -ne "${CYAN}Select a region: ${NC}"
+        read region_choice
+        selected_region=${regions[region_choice - 1]}
+        echo -e "${GREEN}Region selected: $selected_region${NC}"
+
+        echo -ne "${CYAN}Confirm region? (y/n): ${NC}"
+        read confirm_region
+        [[ $confirm_region =~ ^[yY](es)?$ ]] || { echo -e "${RED}Selection canceled, restarting...${NC}"; continue; }
+
+        cities=($(find /usr/share/zoneinfo/$selected_region/* -maxdepth 0 -exec basename {} \;))
+        show_options_grid "${cities[@]}"
+        echo -ne "${CYAN}Select a city: ${NC}"
+        read city_choice
+        selected_city=${cities[city_choice - 1]}
+        echo -e "${GREEN}Timezone selected: $selected_region/$selected_city${NC}"
+
+        echo -ne "${CYAN}Confirm timezone? (y/n): ${NC}"
+        read confirm_city
+        [[ $confirm_city =~ ^[yY](es)?$ ]] && break
+        echo -e "${RED}Selection canceled, restarting...${NC}"
+    done
+
+    TIME_ZONE="$selected_region/$selected_city"
+}
+
+select_gpu() {
+    valid_gpus=(via v3d vc4 virgl vesa ast mga qxl i965 r600 i915 r200 r100 r300 lima omap r128 radeon geode vivante nvidia fbdev dummy intel vmware glint tegra d3d12 exynos amdgpu nouveau radeonsi virtualbox panfrost lavapipe freedreno siliconmotion)
+
+    while true; do
+        show_options_grid "${valid_gpus[@]}"
+        echo -ne "${CYAN}Select a GPU: ${NC}"
+        read gpu_choice
+        selected_gpu=${valid_gpus[gpu_choice - 1]}
+        echo -e "${GREEN}GPU selected: $selected_gpu${NC}"
+
+        echo -ne "${CYAN}Confirm GPU? (y/n): ${NC}"
+        read confirm_gpu
+        [[ $confirm_gpu =~ ^[yY](es)?$ ]] && break
+        echo -e "${RED}Selection canceled, restarting...${NC}"
+    done
 }
 
 # Collect the first needed variables.
 collect_variables() {
-    # Ask the user the boot partition first.
-    read -rp "Enter the Boot Partition (e.g /dev/nvme0n1p1): " PARTITION_BOOT
-
-    # Ask the timezone.
-    read -rp "Enter the Timezone (e.g. Europe/Berlin): " TIME_ZONE
-
-    # Ask the GPU.
-    read -rp "Enter your GPU (e.g nvidia): " GPU
-
-    # Ask if the user has other disks they want to mount.
-    read -rp "Do you have another partition you want to mount with boot? (y,n): " EXTERNAL_HDD
-
-    # If the user said yes, then continue with the below questions; otherwise, skip.
-    [[ "$EXTERNAL_HDD" =~ [Yy](es)? ]] && {
-        read -rp "Which partition is it? (e.g /dev/sda1): " PARTITION_EXTERNAL
-        read -rp "What's the format of that partition? (e.g ext4): " FORMAT_EXTERNAL
-	read -rp "What's the path to mount? (e.g /mnt/harddisk): " MOUNT_DIR
-	mkdir -p "$MOUNT_DIR"
-    } || log_info "No extra partitions specified. Skipping..."
-
     # Find partitions mounted to / and /boot. then get their IDs.
     # These are needed for configuring the kernel and fstab.
     PARTITION_ROOT="$(findmnt -n -o SOURCE /)"
 
+    # The below command finds the boot partition. 0 in lsblk (RM) means non removable.
+    # The sed command specifically searches for 0 and the below EFI System code then add /dev
+    # to the result to get an output similar to this: "/dev/nvme0n1p1". If there is no matchin partition
+    # , user will get an appropriate error with the next function.
+    PARTITION_BOOT="$(lsblk -nlo NAME,RM,PARTTYPE |
+	    sed -n '/0\s*c12a7328-f81f-11d2-ba4b-00a0c93ec93b/ {s|^[^ ]*|/dev/&|; s| .*||p; q}')"
+
     UUID_ROOT="$(blkid -s UUID -o value "$PARTITION_ROOT")"
     UUID_BOOT="$(blkid -s UUID -o value "$PARTITION_BOOT")"
     PARTUUID_ROOT="$(blkid -s PARTUUID -o value "$PARTITION_ROOT")"
-    [[ "$EXTERNAL_HDD" =~ [Yy](es)? ]] && EXTERNAL_UUID="$(blkid -s UUID -o value "$PARTITION_EXTERNAL")"
+}
+
+select_external_hdd() {
+    echo -e "${WHITE}Do you have another partition you want to mount with boot? (y/n):${YELLOW}"
+    read EXTERNAL_HDD
+    echo -e "${NC}"
+
+    [[ $EXTERNAL_HDD =~ ^[yY](es)?$ ]] && {
+
+    while true; do
+        echo -e "${WHITE}Available Partitions:${NC}"
+        IFS=$'\n' partitions=($(lsblk -lnfo NAME,FSTYPE,SIZE | sed -E 's/^/\/dev\//; /vfat/d; \|'"${PARTITION_ROOT}"'|d; /^[^ ]*[a-z] /d; /^[^ ]*n[0-9][^p] /d; /^[^ ]+\s+[^ ]+\s*$/d'))
+        unset IFS
+
+        for i in "${!partitions[@]}"; do
+            echo -e "${PURPLE}$((i + 1))) ${YELLOW}${partitions[i]}${NC}"
+        done
+
+        echo -ne "${WHITE}Select a partition number: ${CYAN}"
+        read partition_choice
+	partition_info="${partitions[partition_choice - 1]}"
+	PARTITION_EXTERNAL=${partition_info%% *}
+
+	filesystem_type=($partition_info)
+	filesystem_type="${filesystem_type[1]}"
+
+        echo -ne "${WHITE}Enter the mount path (e.g., /mnt/harddisk): ${CYAN}"
+        read mount_path
+
+        echo -e "${GREEN}Selected Partition: $PARTITION_EXTERNAL${NC}"
+        echo -e "${GREEN}Filesystem Type: $filesystem_type${NC}"
+        echo -e "${GREEN}Mount Path: $mount_path${NC}"
+
+	echo -ne "${CYAN}Confirm external hdd? (y/n): ${NC}"
+        read confirm_external_hdd
+        [[ $confirm_external_hdd =~ ^[yY](es)?$ ]] && break
+        echo -e "${RED}Selection canceled, restarting...${NC}"
+    done; } || log_info b "No extra partitions specified. Skipping..."
+    [[ "$EXTERNAL_HDD" =~ [Yy](es)? ]] && EXTERNAL_UUID="$(blkid -s UUID -o value "$PARTITION_EXTERNAL")" || true
 }
 
 # Check if above variables properly collected.
 check_first_vars() {
     # Check if the boot partition exists.
-    { lsblk "$PARTITION_BOOT" > /dev/null 2>&1
-    } || { log_info "Partition $PARTITION_BOOT does not exist."; exit 1; }
+    lsblk "$PARTITION_BOOT" > /dev/null 2>&1 || {
+	    log_info r "Partition $PARTITION_BOOT does not exist."; exit 1; }
+
+    # Check if the disk is GPT labeled. If not, inform the user and stop.
+    DISK="${PARTITION_BOOT%[0-9]*}"
+    DISK="${DISK%p}"
+    fdisk -l "$DISK" | grep -q "Disklabel type: gpt" || {
+	    log_info r "Your disk device is not 'GPT labeled'. Exit chroot first."
+    	    log_info r "Use fdisk on your device without its partition: '/dev/nvme0n1'"
+	    log_info r "Delete every partition by typing 'd' and 'enter' first."
+	    log_info r "Type g (lower-cased) and enter to create a GPT label."
+	    log_info r "Then create 2 partitions for boot and root by typing 'n'."
+    	    exit 1; }
+
+    # Check if the boot partition has 'EFI System' type.
+    BOOT_PART_TYPE=$(lsblk -nlo PARTTYPE $PARTITION_BOOT)
+    [ "$BOOT_PART_TYPE" = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ] || {
+	    log_info r "The boot partition does not have 'EFI System' type."
+	    log_info r "Use fdisk on your device '/dev/nvme0n1' without its partition."
+	    log_info r "Type 't' and enter. Select the related partition. Then make it 'EFI System'."
+    	    exit 1; }
+
+    # Check if the boot partition is formatted as 'vfat FAT32'.
+    BOOT_FS_TYPE=$(blkid -o value -s TYPE $PARTITION_BOOT)
+    [ "$BOOT_FS_TYPE" = "vfat" ] || {
+	    log_info r "The boot partition should be formatted as 'vfat FAT32'."
+	    log_info r "Use 'mkfs.vfat -F 32 /dev/<your-partition>'."
+	    log_info r "You need 'sys-fs/dosfstools' for this operation."
+    	    exit 1; }
+
+    # Check if the root partition has 'Linux Filesystem' type
+    ROOT_PART_TYPE=$(lsblk -nlo PARTTYPE $PARTITION_ROOT)
+    [ "$ROOT_PART_TYPE" = "0fc63daf-8483-4772-8e79-3d69d8477de4" ] || {
+	    log_info r "The root partition does not have 'Linux Filesystem' type."
+    	    log_info r "Use fdisk on your device '/dev/nvme0n1' without its partition."
+	    log_info r "Type 't' and enter. Select the related partition. Then make it 'Linux Filesystem'."
+    	    exit 1; }
+
+    # Check if the root partition is formatted with 'ext4'
+    ROOT_FS_TYPE=$(blkid -o value -s TYPE $PARTITION_ROOT)
+    [ "$ROOT_FS_TYPE" = "ext4" ] || {
+	    log_info r "The root partition is not formatted with 'ext4'."
+    	    log_info r "Use 'mkfs.ext4 /dev/<your-partition>'."
+	    exit 1; }
 
     # Check if the timezone given appropriate.
     TZ_FILE="/usr/share/zoneinfo/${TIME_ZONE}"
-    { [ -f "$TZ_FILE" ]
-    } || { log_info "The timezone $TIME_ZONE is invalid or does not exist."; exit 1; }
+    [ -f "$TZ_FILE" ] || {
+	    log_info r "The timezone $TIME_ZONE is invalid or does not exist."; exit 1; }
 
     # Check if all IDs collected properly.
     { [ -n "$UUID_ROOT" ] && [ -n "$UUID_BOOT" ] && [ -n "$PARTUUID_ROOT" ]
-    } || { log_info "Critical partition information is missing."; exit 1; }
+    } || { log_info r "Critical partition information is missing."; exit 1; }
 
     # Check if GPU given is appropriate.
-    # We define the proper GPUs in the list below.
-    valid_gpus="via v3d vc4 virgl vesa ast mga qxl i965 r600 i915 r200 r100 r300 lima omap r128 radeon geode vivante nvidia fbdev dummy intel vmware glint tegra d3d12 exynos amdgpu nouveau radeonsi virtualbox panfrost lavapipe freedreno siliconmotion"
-
     # Check if the entered GPU is in the list of valid GPUs and does not contain spaces.
-    { [[ "$valid_gpus" =~ $GPU ]] && [[ ! "$GPU" =~ [[:space:]] ]]
-    } || { log_info "Invalid GPU. Please enter a valid GPU."; exit 1; }
+    { [[ " ${valid_gpus[@]} " =~ " $selected_gpu " ]] && [[ ! "$selected_gpu" =~ [[:space:]] ]]
+    } || { log_info r "Invalid GPU. Please enter a valid GPU."; exit 1; }
 }
 
 # Account information is needed in order to create a user.
 collect_credentials() {
-    read -rp "Enter the New Username: " USERNAME
-    read -rsp "Enter the New Password: " PASSWORD
-    echo " "
-    read -rsp "Confirm the New Password: " PASSWORD2
+    echo -e "${WHITE}Enter the Username:${YELLOW}"
+    read USERNAME
+    echo -e "${WHITE}Enter the Password:${YELLOW}"
+    read -s PASSWORD
+    echo -e "${WHITE}Confirm the Password:${YELLOW}"
+    read -s PASSWORD2
+
+    echo ""
+    echo -e "${NC}"
 }
 
 # Check if the given credentials are proper.
 check_credentials() {
     # Check if the username contains only alphanumeric characters, underscores, and dashes.
     [[ "$USERNAME" =~ ^[a-zA-Z0-9_-]+$ ]] || {
-    log_info "Invalid username. Only alphanumeric characters, underscores, and dashes are allowed."; exit 1; }
+    log_info r "Invalid username. Only alphanumeric characters, underscores, and dashes are allowed."; exit 1; }
 
     # Check if passwords match and are not empty.
     { [ "$PASSWORD" = "$PASSWORD2" ] && [ -n "$PASSWORD" ]
-    } || { log_info "Passwords do not match or are empty."; exit 1; }
+    } || { log_info r "Passwords do not match or are empty."; exit 1; }
+}
+
+# Sync the Gentoo Repositories with the newest ones.
+# We also need Git in order to pull our repositories.
+sync_repos() {
+    # emerge --sync --quiet
+    echo ""
+    # emerge dev-vcs/git
 }
 
 # File Associations with URL, Download Location, and Final Destination.
@@ -200,7 +331,7 @@ associate_f() {
 }
 
 # Set file associations. Updating could be singular but there is no need
-# since it's instant and not problematic.
+# since it's instant and not problematic. Some of them does not have final location.
 update_associations() {
     associate_f "package.use" "$URL_PACKAGE_USE" "$PORTAGE_DIR"
     associate_f "package.accept_keywords" "$URL_ACCEPT_KEYWORDS" "$PORTAGE_DIR"
@@ -208,17 +339,11 @@ update_associations() {
     associate_f "use.mask" "$URL_USE_MASK" "$PORTAGE_PROFILE_DIR"
     associate_f "package.unmask" "$URL_PACKAGE_UNMASK" "$PORTAGE_PROFILE_DIR"
     associate_f ".config" "$URL_KERNEL_CONFIG" "$LINUX_DIR"
-    associate_f "user.js" "$URL_USER_JS" "$LIBREW_PROF_DIR"
-    associate_f "updater.sh" "$URL_UPDATER_SH" "$LIBREW_PROF_DIR"
-    associate_f "user-overrides.js" "$URL_USER_OVERRIDES_JS" "$LIBREW_PROF_DIR"
-    associate_f "userChrome.css" "$URL_USERCHROME_CSS" "$LIBREW_CHROME_DIR"
-    associate_f "userContent.css" "$URL_USERCONTENT_CSS" "$LIBREW_CHROME_DIR"
     associate_f "clang_o3_lto" "$URL_CLANG_O3_LTO" "$PORTAGE_ENV_DIR"
     associate_f "clang_o3_lto_fpic" "$URL_CLANG_O3_LTO_FPIC" "$PORTAGE_ENV_DIR"
     associate_f "gcc_o3_lto" "$URL_GCC_O3_LTO" "$PORTAGE_ENV_DIR"
     associate_f "gcc_o3_nolto" "$URL_GCC_O3_NOLTO" "$PORTAGE_ENV_DIR"
     associate_f "gcc_o3_lto_ffatlto" "$URL_GCC_O3_LTO_FFATLTO" "$PORTAGE_ENV_DIR"
-    associate_f "ublock_backup.txt" "$URL_UBLOCK_BACKUP" "$USER_HOME"
     associate_f "blacklist_hosts.txt" "$URL_HOSTS_BLACKLIST"
     associate_f "fzf-tab" "$URL_FZF_TAB" "$ZDOTDIR"
     associate_f "zsh-autosuggestions" "$URL_ZSH_AUTOSUGGESTIONS" "$ZDOTDIR"
@@ -227,14 +352,12 @@ update_associations() {
     associate_f "texlive.profile" "$URL_TEXLIVE_PROFILE" "$TEX_DIR"
     associate_f "dependencies.txt" "$URL_DEPENDENCIES_TXT"
     associate_f "dotfiles" "$URL_DOTFILES"
-    associate_f "telegram.tar.xz" "$URL_TELEGRAM_TAR_XZ" "$LOCAL_BIN_DIR"
-    associate_f "webcord.AppImage" "$URL_WEBCORD_APPIMAGE" "$LOCAL_BIN_DIR"
-    associate_f "upscayl.AppImage" "$URL_UPSCAYL_APPIMAGE" "$LOCAL_BIN_DIR"
     associate_f "busybox-9999" "$URL_BUSYBOX_CONFIG" "$BUSYBOX_CONFIG_DIR"
     associate_f "default.script" "$URL_DEFAULT_SCRIPT" "$UDHCPC_SCRIPT_DIR"
     associate_f "udhcpc" "$URL_UDHCPC_INIT" "$UDHCPC_INIT_DIR"
     associate_f "local" "$URL_LOCAL"
     associate_f "install-tl-unx.tar.gz" "$URL_TEXLIVE_INSTALL"
+    associate_f "wal.vim" "$URL_WAL_VIM" "$WAL_VIM_DIR"
 }
 
 update_associations
@@ -244,20 +367,34 @@ move_file() {
     local key=$1
     local custom_destination=${2:-}  # Optional custom destination.
     local download_path final_destination
-    IFS=' ' read -r _ download_path final_destination <<< "${associate_files[$key]}"
+    read -r _ download_path final_destination <<< "${associate_files[$key]}"
 
     # Move the file.
     mv "$download_path" "$final_destination"
 }
 
-# Display the progress bar.
+# Display the progress bar. This is a fun way to see the progress for the files
+# we download from links at the start of the script.
 update_progress() {
     local total=$1
     local current=$2
-    local pct="$(( (current * 100) / total ))"
+    local pct=$(( (current * 100) / total ))
+    local filled_blocks=$((pct * 65 / 100))
+    local empty_blocks=$((65 - filled_blocks))
+    local bar=''
 
-    # Clear the line and display the progress bar.
-    printf "\rProgress: [%-100s] %d%%" "$(printf "%-${pct}s" | tr ' ' '#')" "$pct"
+    # Filled part of the bar.
+    for i in $(seq 1 $filled_blocks); do
+        bar="${bar}${GREEN}#${NC}"
+    done
+
+    # Empty part of the bar.
+    for i in $(seq 1 $empty_blocks); do
+        bar="${bar}${RED}-${NC}"
+    done
+
+    # Print the progress bar with the percentage in purple.
+    echo -ne "\r\033[K$bar${PURPLE} $pct%${NC}"
 }
 
 # Determine and handle download type.
@@ -267,13 +404,13 @@ download_file() {
 
     # Check for directory existence and skip Git cloning if it exists.
     [ -d "$dest" ] && {
-        log_info "Directory $dest already exists, skipping download."
+        log_info b "Directory $dest already exists, skipping download."
         return
     }
 
     # Check for file existence and skip downloading if it exists.
     [ -f "$dest" ] && {
-        log_info "File $dest already exists, skipping download."
+        log_info b "File $dest already exists, skipping download."
         return
     }
 
@@ -290,46 +427,30 @@ download_file() {
 # Function to Retrieve All Files with Progress Bar.
 retrieve_files() {
     mkdir -p "$FILES_DIR"
-    local total="$((${#associate_files[@]}))"
+    local total="${#associate_files[@]}"
     local current=0
+
+    echo -ne "\033[?25l"
 
     for key in "${!associate_files[@]}"; do
         current="$((current + 1))"
         update_progress "$total" "$current"
 
-        IFS=' ' read -r source dest _ <<< "${associate_files[$key]}"
+        read -r source dest _ <<< "${associate_files[$key]}"
         download_file "$source" "$dest"
     done
+
+    echo ""
+
+    echo -e "\033[?25h"
 }
 
 # Check the files we downloaded.
 check_files() {
-    local missing_files=()
-    local pid_array=()
-    local file_path
-
-    # Check each file in the background and record missing ones.
     for key in "${!associate_files[@]}"; do
-	IFS=' ' read -r source dest _ <<< "${associate_files["$key"]}"
-        file_path="$dest"
-
-        # Background process for checking file or repo existence.
-        ( [ -s "$file_path" ] || [ -d "$file_path" ] || echo "$file_path" ) &
-        pid_array+=($!)  # Store PID of background process.
+        read -r _ f _ <<< "${associate_files["$key"]}"
+        [ -s "$f" ] || [ -d "$f" ] || { log_info r "$f is missing."; kill 0; }
     done
-
-    # Wait for all background processes to complete.
-    for pid in "${pid_array[@]}"; do
-        wait "$pid" || missing_files+=("$(<&3)")
-    done
-
-    # Report missing files.
-    for file in "${missing_files[@]}"; do
-        log_info "Expected file or repository $file is missing or empty."
-    done
-
-    # If there are missing files, then stop.
-    [ ${#missing_files[@]} -eq 0 ] || exit 1
 }
 
 # This command used several times in order to renew the environment after some changes.
@@ -339,6 +460,7 @@ renew_env() {
 
 # Configure the localization settings.
 configure_locales() {
+    log_info r "EXITING now... The demo is ended." && kill 0
     # Remove the "#" before English UTF setting.
     sed -i "/#en_US.UTF/ s/#//g" /etc/locale.gen
 
@@ -349,7 +471,7 @@ configure_locales() {
     eselect locale set en_US.utf8
 
     # Add locales for the compiler.
-    echo "LC_COLLATE=\"C.UTF-8\"" >> /etc/env.d/02locale
+    echo 'LC_COLLATE="C.UTF-8"' >> /etc/env.d/02locale
 
     # Renew the environment.
     renew_env
@@ -361,15 +483,14 @@ configure_flags() {
     # Add LDFLAGS AND RUSTFLAGS below FFLAGS.
     sed -i '/COMMON_FLAGS=/ c\COMMON_FLAGS="-march=native -O2 -pipe"
             /^FFLAGS/ a\LDFLAGS="-Wl,-O2 -Wl,--as-needed"
-	    /^LDFLAGS/ a\RUSTFLAGS="-C debuginfo=0 -C codegen-units=1 -C target-cpu=native -C opt-level=3"' /etc/portage/make.conf
+	    /^FFLAGS/ a\RUSTFLAGS="-C debuginfo=0 -C codegen-units=1 -C target-cpu=native -C opt-level=3"' /etc/portage/make.conf
 
     # Find CPU flags and append them to make.conf file.
     # The command's output is not proper for make.conf so we modify it.
-    emerge cpuid2cpuflags
+    emerge --oneshot app-portage/cpuid2cpuflags
     cpuid2cpuflags | sed 's/: /="/; s/$/"/' >> /etc/portage/make.conf
 
-    # This program is not needed anymore. So it's removed.
-    emerge --depclean cpuid2cpuflags
+    echo "" >> /etc/portage/make.conf
 
     # Enable rolling release packages and use the latest version targets.
     cat <<-EOF >> /etc/portage/make.conf
@@ -509,13 +630,13 @@ set_timezone() {
 # We need the Intel Microcode updated specifically for our CPU.
 set_cpu_microcode() {
     # First use a generic flac since we don't know the signature yet.
-    echo "MICROCODE_SIGNATURES=\"-S\"" >> /etc/portage/make.conf
+    echo 'MICROCODE_SIGNATURES="-S"' >> /etc/portage/make.conf
 
     # Emerge the microcode package.
-    emerge intel-microcode
+    emerge sys-firmware/intel-microcode
 
     # Now we have the package so we can learn the microcode now.
-    SIGNATURE="$(iucode_tool -S 2>&1 | grep -o "0.*$")"
+    SIGNATURE="$(iucode_tool -S 2>&1 | grep -o "0x0.*$")"
 
     # Change the temporal setting.
     sed -i "/MICROCODE/ s/-S/-s $SIGNATURE/" /etc/portage/make.conf
@@ -529,18 +650,18 @@ set_linux_firmware() {
     # Emerge without xz support since we don't have the kernel yet.
     USE="-compress-xz" emerge linux-firmware
 
-    # pciutils is needed to find our GPU Code.
-    emerge --oneshot pciutils
+    { [[ "$GPU" =~ nvidia ]] && {
+    	# pciutils is needed to find our GPU Code.
+    	emerge --oneshot pciutils
 
-    # We need a sanitized output in order to use it.
-    { [[ "$GPU" =~ nvidia ]] &&
         GPU_CODE="$(lspci | grep -i 'vga\|3d\|2d' |
 	               sed -n '/NVIDIA Corporation/{s/.*NVIDIA Corporation \([^ ]*\).*/\L\1/p}' |
 		       sed 's/m$//')"
+	       	       } || true
 
         # Remove all Linux Firmware except the ones we need for the GPU.
         sed -i '/^nvidia\/'"$GPU_CODE"'/!d' /etc/portage/savedconfig/sys-kernel/linux-firmware-*
-    } || log_info "Not using Nvidia... Skipping the debloating process for Linux Firmware."
+    } || log_info b "Not using Nvidia... Skipping the debloating process for Linux Firmware."
 }
 
 # Solve the dependency conflict for text rendering and rasterization.
@@ -558,8 +679,14 @@ build_linux() {
     # Download the source for the lates Linux Kernel.
     emerge gentoo-sources
 
-    # Use the variable we got at first.
-    sed -i -e '/.*CONFIG_CMDLINE.*/c\' -e "CONFIG_CMDLINE=\"root=PARTUUID=$PARTUUID_ROOT\"" "$LINUX_DIR"/.config
+    # Move our .config file we downloaded before.
+    move_file ".config"
+
+    # Use the variable we got at first. Then also actiave openrc-init. If the user has nvidia, enable it.
+    sed -i "/^CONFIG_CMDLINE=.*/ c\CONFIG_CMDLINE=\"root=PARTUUID=$PARTUUID_ROOT init=/sbin/openrc-init\"" "$LINUX_DIR"/.config
+
+    # Arch Wiki: Nvidia Page
+    [[ "$GPU" =~ nvidia ]] && sed -i "/^CONFIG_CMDLINE=.*/ s/\"$/ nvidia_drm.modeset=1 fbdev=1\"/" "$LINUX_DIR"/.config
 
     # Find our CPU Microcode Path.
     MICROCODE_PATH="$(iucode_tool -S -l /lib/firmware/intel-ucode/* 2>&1 |
@@ -572,36 +699,34 @@ build_linux() {
 
     # 1- Use the found CPU Microcode Path.
     # 2- Add the number of threads to the kernel config.
-    # 3- Use the variable we got for our root partition in order to use Efistub.
-    # 4- Enable OpenRC Init instead of SysVinit.
-    sed -i "/CONFIG_EXTRA_FIRMWARE/ s/=.*/=\"$MICROCODE_PATH\"/
-            /CONFIG_NR_CPUS/ s/=.*/=$THREAD_NUM/
-            /.*CONFIG_CMDLINE.*/c CONFIG_CMDLINE=\"root=PARTUUID=$PARTUUID_ROOT init=/sbin/openrc-init\"" "$LINUX_DIR"/.config
+    # Use `|` as a delimeter because forward slashes inside microcode path
+    # can be interpreted as a part of the command.
+    sed -i "/CONFIG_EXTRA_FIRMWARE=/ s|=.*|=\"$MICROCODE_PATH\"|
+            /CONFIG_NR_CPUS=/ s|=.*|=$THREAD_NUM|" "$LINUX_DIR"/.config
 
-    # Move our .config file we downloaded before.
-    move_file .config
-
-    # Set the configuration file.
-    make -C "$LINUX_DIR" olddefconfig
+    # Set the configuration file. We are using LTO + O3 optimizations with Clang compiler.
+    LLVM=1 LLVM_IAS=1 CFLAGS="-O3 -march=native -pipe" make -C "$LINUX_DIR" olddefconfig
 
     # Build the kernel.
-    make -C "$LINUX_DIR" -j"$(nproc)"
+    LLVM=1 LLVM_IAS=1 CFLAGS="-O3 -march=native -pipe" make -C "$LINUX_DIR" -j"$(nproc)"
 
     # Everytime a new kernel built, nvidia drivers need to be emerged.
+    # Add PAT support to the nvidia.conf. Refer to Arch Wiki Page: "Nvidia".
     { [[ "$GPU" =~ nvidia ]] && emerge x11-drivers/nvidia-drivers
-    } || log_info "Not using Nvidia... Skipping..."
+        echo "options nvidia NVreg_UsePageAttributeTable=1" >> /etc/modprobe.d/nvidia.conf
+    } || log_info b "Not using Nvidia... Skipping..."
 
     # Since we have the kernel, we can build linux-firmware with xz.
     emerge sys-kernel/linux-firmware
 
     # Install the modules.
-    make -C "$LINUX_DIR" modules_install
+    LLVM=1 LLVM_IAS=1 CFLAGS="-O3 -march=native -pipe" make -C "$LINUX_DIR" modules_install
 
     # Mount the boot partition in order to copy the kernel.
     mount "$PARTITION_BOOT" /boot
 
     # Create the necessary directory for UEFI.
-    mkdir -p /boot/EFI/BOOT
+    mkdir -p "/boot/EFI/BOOT"
 
     # Copy the kernel to its location.
     cp "$NEW_KERNEL" "$KERNEL_PATH"
@@ -616,8 +741,9 @@ generate_fstab() {
     echo "UUID=$UUID_ROOT / ext4 defaults,noatime 0 1" >> /etc/fstab
 
     # If the user has an external HDD.
-    { [[ "$EXTERNAL_HDD" =~ [Yy](es)? ]]
-    } && echo "UUID=$EXTERNAL_UUID /mnt/harddisk $FORMAT_EXTERNAL defaults,uid=1000,gid=1000,umask=022,noatime,nofail 0 2" >> /etc/fstab
+    [[ "$EXTERNAL_HDD" =~ [Yy](es)? ]] && {
+    echo "UUID=$EXTERNAL_UUID /mnt/harddisk $FORMAT_EXTERNAL defaults,uid=1000,gid=1000,umask=022,noatime,nofail 0 2" >> /etc/fstab ||
+	    true; }
 }
 
 # We will create a generic hosts file with our username and local ip.
@@ -636,7 +762,8 @@ configure_hosts() {
     echo " " >> /etc/hosts
 
     # Modify the blacklisted hosts and append to the file in a clean way.
-    # We exclude Reddit. Others can be similaryly excluded.
+    # We exclude Reddit as an example. Others can be similaryly excluded.
+    # You can also later modify the file either by commands or manually.
     grep -oE '^0[^ ]+ [^ ]+' "$FILES_DIR"/blacklist_hosts.txt |
     grep -vF '0.0.0.0 0.0.0.0' |
     sed "/0.0.0.0 a.thumbs.redditmedia.com/,+66d" >> /etc/hosts
@@ -703,9 +830,9 @@ configure_openrc() {
     for n in $(seq 1 6); do ln -s /etc/init.d/agetty /etc/init.d/agetty.tty"$n"; rc-config add agetty.tty"$n" default; done
 }
 
-# We will create a user and passwords in a non-interactive way. Since we
+# We will create a user and a passwords in a non-interactive way. Since we
 # already collected the name and pass variables. We will also configure doas (a
-# minimal sudo replacement). Pipewire does not have an OpenRC service we launch
+# minimal sudo replacement). Pipewire does not have an OpenRC service. So we launch
 # gentoo-pipewire-launcher at boot instead.
 configure_accounts() {
     # In order to add our users to certain groups we need to compile some packages.
@@ -777,12 +904,14 @@ configure_repos() {
 # start Wayland compositors on Nvidia GPUs. This function will
 # only run for machines with Nvidia GPUs.
 add_nvidia_modules() {
-    mkdir -p /etc/modules-load.d
-    { echo "nvidia"
-      echo "nvidia_modeset"
-      echo "nvidia_uvm"
-      echo "nvidia_drm"
-    } >> /etc/modules-load.d/video.conf
+    [[ "$GPU" =~ nvidia ]] && {
+        mkdir -p /etc/modules-load.d
+        { echo "nvidia"
+          echo "nvidia_modeset"
+          echo "nvidia_uvm"
+          echo "nvidia_drm"
+        } > /etc/modules-load.d/video.conf
+    } || log_info b "Not using Nvidia. Skipping module setup."
 }
 
 # We have a list of dependencies (packages we want to install). We will install
@@ -795,7 +924,8 @@ install_dependencies() {
     # too.
     DEPLIST="$(sed -e 's/#.*$//' -e '/^$/d' "$FILES_DIR"/dependencies.txt | tr '\n' ' ')"
 
-    # Now we can install the dependencies.
+    # Now we can install the dependencies. This shouldn't have double quotes.
+    # Because we want the arguments to be separated.
     emerge $DEPLIST
 }
 
@@ -807,6 +937,7 @@ initiate_new_vars() {
     XDG_CONFIG_HOME="$USER_HOME/.config"
     ZDOTDIR="$XDG_CONFIG_HOME/zsh"
     LOCAL_BIN_DIR="$USER_HOME/.local/bin"
+    WAL_VIM_DIR="$XDG_CONFIG_HOME/nvim/plugged/wal.vim/colors"
 
     update_associations
 }
@@ -819,12 +950,13 @@ place_dotfiles() {
     mv -f "$FILES_DIR/dotfiles/.local" "$USER_HOME"
     mv -f "$FILES_DIR/dotfiles/.cache" "$USER_HOME"
 
-    # Some files should be executable such as Hyprland starting wrapper, lf previews, user scripts.
+    # Some files should be executable such as lf previews, user scripts.
     chmod +x "$LOCAL_BIN_DIR"/*
     chmod +x "$XDG_CONFIG_HOME"/lf/*
-    chmod +x "$XDG_CONFIG_HOME"/hypr/start.sh
+    chmod +x "$XDG_CONFIG_HOME"/dunst/warn.sh
 
-    # We will use the lower-cased downloads folder.
+    # We will use the lower-cased downloads folder. Do not forget
+    # Changing settings to this folder on applications such as Browsers.
     mkdir -p "$USER_HOME/downloads"
 }
 
@@ -838,72 +970,6 @@ configure_fonts() {
     eselect fontconfig enable 10-sub-pixel-rgb.conf
     eselect fontconfig enable 10-yes-antialias.conf
     eselect fontconfig enable 11-lcdfilter-default.conf
-}
-
-# Create Librewolf profile. Install my setting files. Install extensions.
-configure_librewolf() {
-    # Start librewolf in headless mode in order to create config directory for it.
-    doas -u "$USERNAME" librewolf --headless >/dev/null 2>&1 &
-    sleep 3
-    killall librewolf
-
-    # Find the profile folder.
-    LIBREW_PROF_DIR="$(sed -n "/Default=.*.default-release/ s/.*=//p" "$USER_HOME"/.librewolf/profiles.ini)"
-    LIBREW_CHROME_DIR="$LIBREW_PROF_DIR/chrome"
-
-    # userChrome.css and userContent.css files need to be placed in the chrome dir.
-    mkdir -p "$LIBREW_CHROME_DIR"
-
-    # Since we have new variables, renew the associations in order to move files properly.
-    update_associations
-
-    # Move the Librewolf configuration files.
-    move_file user.js
-    move_file user-overrides.js
-    move_file updater.sh
-    move_file userChrome.css
-    move_file userContent.css
-
-    # We need to make Arkenfox.js script executable.
-    # And the user needs to own the .librewolf directory.
-    chmod +x "$LIBREW_PROF_DIR"/updater.sh
-    chown -R "$USERNAME":"$USERNAME" "$USER_HOME"
-
-    # Run the Arkenfox.js script to apply the configuration files.
-    doas -u "$USERNAME" "$LIBREW_PROF_DIR"/updater.sh -s -u
-
-    # Create the directory for the extensions.
-    EXT_DIR="$LIBREW_PROF_DIR/extensions"
-    mkdir -p "$EXT_DIR"
-
-    # These are the extensions we want to download.
-    ADDON_NAMES=("ublock-origin" "istilldontcareaboutcookies" "vimium-ff" "minimalist-open-in-mpv" "darkreader")
-
-    # For loop to download, extract, modify and move all extension properly.
-    # Loop all listed addons.
-    for ADDON_NAME in "${ADDON_NAMES[@]}"
-    do
-	# We first find the addon URL, curl it and then find the proper download link.
-        ADDON_URL="$(curl --silent "https://addons.mozilla.org/en-US/firefox/addon/${ADDON_NAME}/" |
-		           grep -o 'https://addons.mozilla.org/firefox/downloads/file/[^"]*')"
-
-	    # We download the extension file with the extension.xpi name.
-            curl -sL "$ADDON_URL" -o extension.xpi
-
-	    # We unzip the files and search for the extension ID since librewolf
-	    # Requires the ID  in the name. We also manipulate the text to make it
-	    # usable.
-            EXT_ID="$(unzip -p extension.xpi manifest.json | grep "\"id\"")"
-            EXT_ID="${EXT_ID%\"*}"
-            EXT_ID="${EXT_ID##*\"}"
-
-            # We move the extension file to its proper location by naming it with
-	    # its extension ID.
-            mv extension.xpi "$EXT_DIR/$EXT_ID.xpi"
-    done
-
-    # Move the ublock setting backup in order to use later.
-    move_file ublock_backup.txt
 }
 
 # Install the terminal file manager lf.
@@ -921,7 +987,7 @@ install_lf() {
 # The below function will install TexLive with XeLaTeX support.
 install_texlive() {
     # Download, configure and install texlive and some needed packages.
-    tar -xzf "$FILES_DIR"/install-tl-unx.tar.gz
+    tar -xzf "$FILES_DIR"/install-tl-unx.tar.gz -C "$FILES_DIR"
 
     # Extract directory name.
     TEX_DIR="$(find $FILES_DIR -maxdepth 1 -type d -name "install-tl-*")"
@@ -934,12 +1000,12 @@ install_texlive() {
     "$TEX_DIR"/install-tl -profile "$TEX_DIR"/texlive.profile
 
     # Install additional packages.
-    tlmgr install apa7 biber biblatex geometry scalerel times
+    tlmgr install apa7 biber biblatex geometry scalerel times xetex tools pgf hyperref infwarerr booktabs threeparttable caption fancyhdr endfloat
 }
 
 configure_shell() {
     # Create symlink for the shell profile file we downloaded.
-    ln -s "/home/$USERNAME/.config/shell/profile" "/home/$USERNAME/.zprofile"
+    ln -s "$XDG_CONFIG_HOME/shell/profile" "$USER_HOME/.zprofile"
 
     # Change the default shell to Zsh.
     chsh --shell /bin/zsh "$USERNAME"
@@ -959,7 +1025,7 @@ create_boot_entry() {
     # efibootmgr uses separate disk and partition numbers.
     # we extract them using logic distinctively for nvme and sd disks.
     # For /dev/nvme0n1p1, DISK should output /dev/nvme0n1 and
-    # For PARTITION it should output p1.
+    # For PARTITION it should output 1.
     emerge --oneshot sys-boot/efibootmgr
 
     DISK="$(echo "$PARTITION_BOOT" | grep -q 'nvme' && {
@@ -969,168 +1035,209 @@ create_boot_entry() {
     })"
 
     PARTITION="$(echo "$PARTITION_BOOT" | grep -q 'nvme' && {
-        echo "$PARTITION_BOOT" | sed -E 's/.*nvme[0-9]+n[0-9]+(p[0-9]+)$/\1/'
+        echo "$PARTITION_BOOT" | sed -E 's/.*nvme[0-9]+n[0-9]+p//'
     } || {
         echo "$PARTITION_BOOT" | sed -E 's/.*sd[a-zA-Z]*([0-9]+)$/\1/'
     })"
 
+    # E.g: efibootmgr -c -d /dev/nvme0n1 -p 1 -L "gentoo_hyprland" -l '\EFI\BOOT\BOOTX64.EFI'
     efibootmgr -c -d /dev/"$DISK" -p "$PARTITION" -L "gentoo_hyprland" -l '\EFI\BOOT\BOOTX64.EFI'
 
-    emerge --oneshot sys-boot/efibootmgr
     emerge --depclean
 }
 
-clean_and_finish() {
-    rm -rf "$FILES_DIR" /var/log/* /var/cache/* /var/tmp/* /root/*
-    rm -rf "$USER_HOME"/.bash*
+configure_neovim() {
+    # Install Neovim plugins.
+    doas -u "$USERNAME" nvim -u "$XDG_CONFIG_HOME/nvim/init.vim" +PlugInstall +qall
+
+    # We need our neovim colors for root too.
+    rm -rf "/root/.cache"
+    cp -rf "$USER_HOME/.cache" /root/
+
+    # Move the vim plugin file to use our terminal colors in neovim too.
+    rm -f "$WAL_VIM_DIR/wal.vim"
+
+    move_file "wal.vim"
+}
+
+clean_and_finalize() {
+    rm -rf "$FILES_DIR" /var/log/* /var/cache/* /var/tmp/* /root/* "$USER_HOME"/.bash*
+
+    # Make sure that the user owns their files.
+    chown -R "$USERNAME":"$USERNAME" "$USER_HOME"
 }
 
 # Main function for the script. It informs us on every step with colored logs.
 # So we know which step we are at, and if we succeeded. Since we have set -Eeo
-# pipefail command enabled. The script only runs the success message if the
+# pipefail command enabled; the script only runs the success message if the
 # command before succeeds.
 main() {
-    log_info "01 - Sourcing /etc/profile to set up the environment..."
-    prepare_env
-    log_info "01 - Done! /etc/profile has been sourced."
+    # Declare an associative array
+    declare -A tasks
 
-    log_info "02 - Syncing the Gentoo Repositories..."
-    sync_repos
-    log_info "02 - Done! Gentoo Repositories have been synced."
+    # Define tasks with their descriptions and done messages on separate lines
+    # and three tabs to increase readibility and ease of modifications.
+    tasks[prepare_env]="Prepare the environment.
+		        The environment prepared."
 
-    log_info "03 - Collecting the first needed variables..."
-    collect_variables
-    log_info "03 - Done! Variables have been collected."
+    tasks[select_timezone]="Select the Timezone.
+    			    Timezone selected."
 
-    log_info "04 - Checking the variables..."
-    check_first_vars
-    log_info "04 - Done! Variables are okay."
+    tasks[select_gpu]="Select the GPU.
+    		       GPU selected."
 
-    log_info "05 - Collecting the credentials..."
-    collect_credentials
-    log_info "05 - Done! Credentials have been collected."
+    tasks[collect_variables]="Collect the variables.
+			      Variables collected."
 
-    log_info "06 - Checking the credentials..."
-    check_credentials
-    log_info "06 - Done! Credentials are okay."
+    tasks[select_external_hdd]="Ask about External HDD.
+    				External HDD set."
 
-    log_info "07 - Retrieving the needed files..."
-    retrieve_files
-    log_info "07 - Done! All needed files are retrieved."
+    tasks[check_first_vars]="Check the variables.
+			     Variables good."
 
-    log_info "08 - Checking the files for safety..."
-    check_files
-    log_info "08 - Done! All needed files are present."
+    tasks[collect_credentials]="Collect the credentials.
+			        Credentials collected."
 
-    log_info "09 - Configuring the locales..."
-    configure_locales
-    log_info "09 - Done! Locales have been configured."
+    tasks[check_credentials]="Check the credentials.
+    			      Credentials good."
 
-    log_info "10 - Configuring the compiler flags..."
-    configure_flags
-    log_info "10 - Done! Compiler flags have been configured."
+    tasks[sync_repos]="Sync the Gentoo Repositories.
+		       Gentoo Repositories synced."
 
-    log_info "11 - Configuring Portage settings..."
-    configure_portage
-    log_info "11 - Done! Portage has been configured."
+    tasks[retrieve_files]="Retrieve the files.
+			   Files retrieved."
 
-    log_info "12 - Configuring the package-specific useflags..."
-    configure_useflags
-    log_info "12 - Done! Useflags have been configured."
+    tasks[check_files]="Control the files.
+		        All files present."
 
-    log_info "13 - Moving the custom compiler environment files..."
-    move_compiler_env
-    log_info "13 - Done! Custom compiler environment files have been moved."
+    tasks[configure_locales]="Set the locales.
+    			      Locales ready."
 
-    log_info "14 - Updating the system..."
-    update_system
-    log_info "14 - Done! The system is completely updated."
+    tasks[configure_flags]="Set the make.conf flags.
+    			    Make.conf flags ready."
 
-    log_info "15 - Building Clang/Rust Toolchain..."
-    build_clang_rust
-    log_info "15 - Done! The Clang/Rust toolchain is ready."
+    tasks[configure_portage]="Configure Portage.
+    			      Portage configured."
 
-    log_info "16 - Setting up Timezone..."
-    set_timezone
-    log_info "16 - Done! Timezone is set."
+    tasks[configure_useflags]="Configure useflags.
+    			       Useflags ready."
 
-    log_info "17 - Configuring Linux Firmware..."
-    set_linux_firmware
-    log_info "17 - Done! Linux Firmware has been configured."
+    tasks[move_compiler_env]="Move the custom compiler env. files.
+			      Custom compiler env files ready."
 
-    log_info "18 - Building Freetype..."
-    build_freetype
-    log_info "18 - Done! Freetype has been built."
+    tasks[update_system]="Update the system.
+    			  System updated."
 
-    log_info "19 - Generating fstab file..."
-    generate_fstab
-    log_info "19 - Done! fstab has been generated."
+    tasks[build_clang_rust]="Build Clang/Rust Toolchain.
+    			     Clang/Rust Toolchain ready."
 
-    log_info "20 - Configuring hosts file..."
-    configure_hosts
-    log_info "20 - Done! hosts have been configured."
+    tasks[set_timezone]="Set the timezone.
+    			 Timezone configured."
 
-    log_info "21 - Setting up very minimal udhcpc client..."
-    configure_udhcpc
-    log_info "21 - Done! Busybox UDHCPC has been configured."
+    tasks[set_cpu_microcode]="Configure CPU Microcode.
+    			      CPU Microcode ready."
 
-    log_info "22 - Configuring OpenRC settings..."
-    configure_openrc
-    log_info "22 - Done! OpenRC has been configured."
+    tasks[set_linux_firmware]="Configure Linux Firmware.
+    			       Linux Firmware ready."
 
-    log_info "23 - Configuring user and root account settings..."
-    configure_accounts
-    log_info "23 - Done! Account settings have been configured."
+    tasks[build_freetype]="Build Freetype.
+    			   Freetype ready."
 
-    log_info "24 - Configuring additional repos..."
-    configure_repos
-    log_info "24 - Done! Additional repos have been configured."
+    tasks[build_linux]="Build the Linux Kernel.
+			Linux Kernel ready."
 
-    [[ "$GPU" =~ nvidia ]] && {
-    log_info "00 - Adding necessary Nvidia modules to boottime..."
-    add_nvidia_modules
-    log_info "00 - Done! Nvidia modules added to boottime."
-    }
+    tasks[generate_fstab]="Generate FSTAB.
+			   FSTAB ready."
 
-    log_info "25 - Installing world packages..."
-    install_dependencies
-    log_info "Done! World packages have been installed."
+    tasks[configure_hosts]="Configure Hosts file.
+			    Hosts file ready."
 
-    log_info "26 - Initiating the new variables..."
-    initiate_new_vars
-    log_info "26 - Done! New variables have been created."
+    tasks[configure_udhcpc]="Configure UDHCPC.
+			     UDHCPC ready."
 
-    log_info "27 - Placing the dotfiles..."
-    place_dotfiles
-    log_info "27 - Done! Dotfiles have been placed."
+    tasks[configure_openrc]="Configure OpenRC.
+			     OpenRC ready."
 
-    log_info "28 - Configuring fonts..."
-    configure_fonts
-    log_info "28 - Done! Fonts have been configured."
+    tasks[configure_accounts]="Configure Accounts.
+			       Accounts ready."
 
-    log_info "29 - Configuring Librewolf settings..."
-    configure_librewolf
-    log_info "29 - Done! Librewolf has been configured."
+    tasks[configure_repos]="Configure Repos.
+			    Repos ready."
 
-    log_info "30 - Installing the terminal file manager lf..."
-    install_lf
-    log_info "30 - Done! Lf has been installed."
+    tasks[add_nvidia_modules]="Adding nVidia Modules to bootlevel.
+			       Nvidia modules added to bootlevel."
 
-    log_info "31 - Installing TexLive"
-    install_texlive
-    log_info "31 - Done! TexLive has been installed."
+    tasks[install_dependencies]="Installing the dependencies.
+			         All dependencies installed."
 
-    log_info "32 - Configuring shell settings."
-    configure_shell
-    log_info "32 - Done! Shell settings have been configured."
+    tasks[initiate_new_vars]="Initiate new variables.
+			      New variables ready."
 
-    log_info "33 - Creating the boot entry."
-    create_boot_entry
-    log_info "33 - Done! The boot entry has been created."
+    tasks[place_dotfiles]="Place the dotfiles.
+			   Dotfiles ready."
 
-    log_info "34 - Attempting final system cleanup and finishing the installation..."
-    clean_and_finish
-    log_info "34 - Gentoo Installation has finished successfully. You can reboot with \"openrc-shutdown -r now\" command."
+    tasks[configure_fonts]="Configure font settings.
+			    Fonts settings configured."
+
+    tasks[install_lf]="Install LF file manager.
+		       LF file manager ready."
+
+    tasks[install_texlive]="Install TexLive.
+		            TexLive ready."
+
+    tasks[configure_shell]="Configure Shell
+		            Shell ready."
+
+    tasks[create_boot_entry]="Create UEFI Boot entry.
+		              UEFI Boot Entry created."
+
+    tasks[configure_neovim]="Configure Neovim
+		             Neovim ready."
+
+    tasks[clean_and_finalize]="Start clean-up and finish.
+		        The Installation has finished. You can reboot with 'openrc-shutdown -r now'"
+
+    # Indexed array to define the execution order.
+    task_order=(prepare_env select_timezone select_gpu collect_variables select_external_hdd check_first_vars
+                collect_credentials check_credentials sync_repos retrieve_files check_files configure_locales
+		configure_flags configure_portage configure_useflags move_compiler_env update_system
+		build_clang_rust set_timezone set_cpu_microcode set_linux_firmware build_freetype
+		build_linux generate_fstab configure_hosts configure_udhcpc configure_openrc
+		configure_accounts configure_repos add_nvidia_modules install_dependencies
+		initiate_new_vars place_dotfiles configure_fonts install_lf install_texlive
+		configure_shell create_boot_entry configure_neovim clean_and_finalize)
+
+    TOTAL_TASKS=${#tasks[@]}
+    TASK_NUMBER=1
+
+    for function in "${task_order[@]}"; do
+        # Split the task into description and done message
+	description=${tasks[$function]}
+	description=${description%%$'\n'*}
+
+	done_message=$(echo "${tasks[$function]}" | tail -n 1 | sed 's/^[[:space:]]*//g')
+
+        # Log the start of the task with the task number
+        log_info b "$description"
+
+        [[ $TASK_NUMBER -gt 8 ]] && {
+	(sleep 60; while true; do
+            log_info c "$description"
+	    sleep 60
+        done) &
+        log_pid=$!; }
+
+        # Call the function
+        $function
+
+	[[ $TASK_NUMBER -gt 8 ]] && kill $log_pid
+
+        # Log the "Done" message with the task number
+        log_info g "$done_message"
+
+        # Increment the task number
+        ((TASK_NUMBER++))
+    done
 }
 
 main
