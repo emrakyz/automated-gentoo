@@ -70,8 +70,8 @@ log_info() {
     case $1 in
         g) COLOR=$GREEN MESSAGE='DONE!' ;;
         r) COLOR=$RED MESSAGE='WARNING!' ;;
-        b) COLOR=$BLUE MESSAGE="STARTING..." ;;
-        c) COLOR=$BLUE MESSAGE="RUNNING..." ;;
+        b) COLOR=$BLUE MESSAGE="STARTING." ;;
+        c) COLOR=$BLUE MESSAGE="RUNNING." ;;
     esac
 
     # If the message doesn't start with a task counter format, use the global TASK_NUMBER and TOTAL_TASKS
@@ -347,7 +347,7 @@ update_associations() {
     associate_f "blacklist_hosts.txt" "$URL_HOSTS_BLACKLIST"
     associate_f "fzf-tab" "$URL_FZF_TAB" "$ZDOTDIR"
     associate_f "zsh-autosuggestions" "$URL_ZSH_AUTOSUGGESTIONS" "$ZDOTDIR"
-    associate_f "zsh-fast-syntax-highlighting" "$URL_SYNTAX_HIGHLIGHT" "$ZDOTDIR"
+    associate_f "fast-syntax-highlighting" "$URL_SYNTAX_HIGHLIGHT" "$ZDOTDIR"
     associate_f "powerlevel10k" "$URL_POWERLEVEL10K" "$ZDOTDIR"
     associate_f "texlive.profile" "$URL_TEXLIVE_PROFILE" "$TEX_DIR"
     associate_f "dependencies.txt" "$URL_DEPENDENCIES_TXT"
@@ -1016,7 +1016,7 @@ configure_shell() {
     # Move the plugins.
     move_file fzf-tab
     move_file zsh-autosuggestions
-    move_file zsh-fast-syntax-highlighting
+    move_file fast-syntax-highlighting
     move_file powerlevel10k
 }
 
@@ -1209,6 +1209,8 @@ main() {
 
     TOTAL_TASKS=${#tasks[@]}
     TASK_NUMBER=1
+
+    trap '[[ -n $log_pid ]] && kill $log_pid 2>/dev/null' EXIT SIGINT
 
     for function in "${task_order[@]}"; do
         # Split the task into description and done message
