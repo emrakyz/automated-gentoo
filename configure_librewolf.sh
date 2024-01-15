@@ -7,9 +7,9 @@ URL_USERCHROME_CSS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/user
 URL_USERCONTENT_CSS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/userContent.css"
 URL_UBLOCK_BACKUP="https://raw.githubusercontent.com/emrakyz/dotfiles/main/ublock_backup.txt"
 
-FILES_DIR="$HOME/files"
+FILES_DIR="${HOME}/files"
 
-USERNAME="$(echo $HOME | sed 's|/home/||')"
+USERNAME="$(echo "${HOME}" | sed 's|/home/||')"
 
 # Fail Fast & Fail Safe on errors and stop.
 set -Eeo pipefail
