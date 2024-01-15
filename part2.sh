@@ -972,20 +972,20 @@ main() {
                 "initiate_new_vars" "place_dotfiles" "configure_fonts" "install_lf" "install_texlive"
                 "configure_shell" "create_boot_entry" "configure_neovim" "clean_and_finalize")
 
-        TOTAL_TASKS="${#tasks[@]}"
+	TOTAL_TASKS="${#tasks[@]}"
         TASK_NUMBER="1"
 
         trap '[[ -n "${log_pid}" ]] && kill "${log_pid}" 2> "/dev/null"' EXIT SIGINT
 
         for function in "${task_order[@]}"; do
-                description=${tasks[$function]}
-                description=${description%%$'\n'*}
+                description="${tasks[${function}]}"
+                description="${description%%$'\n'*}"
 
-                done_message=$(echo "${tasks[$function]}" | tail -n "1" | sed 's/^[[:space:]]*//g')
+		done_message="$(echo "${tasks[${function}]}" | tail -n "1" | sed 's/^[[:space:]]*//g')"
 
-                log_info b "${description}"
+		log_info b "${description}"
 
-                [[ "${TASK_NUMBER}" -gt "8" ]] && {
+		[[ "${TASK_NUMBER}" -gt "8" ]] && {
                         (
                                 sleep "60"
                                 while true; do
@@ -996,13 +996,13 @@ main() {
                         log_pid="${!}"
                 }
 
-                "${function}"
+		"${function}"
 
-                [[ "${TASK_NUMBER}" -gt "8" ]] && kill "${log_pid}" || true
+		kill "${log_pid}" 2> "/dev/null" || true
 
-                log_info g "${done_message}"
+		log_info g "${done_message}"
 
-                [[ "${TASK_NUMBER}" -le "${#task_order[@]}" ]] && ((TASK_NUMBER++))
+		[[ "${TASK_NUMBER}" -le "${#task_order[@]}" ]] && ((TASK_NUMBER++))
         done
 }
 

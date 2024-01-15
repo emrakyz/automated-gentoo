@@ -9,12 +9,10 @@ URL_UBLOCK_BACKUP="https://raw.githubusercontent.com/emrakyz/dotfiles/main/ubloc
 
 FILES_DIR="${HOME}/files"
 
-USERNAME="$(echo "${HOME}" | sed 's|/home/||')"
+USERNAME="${HOME//\/home\//}"
 
-# Fail Fast & Fail Safe on errors and stop.
 set -Eeo pipefail
 
-# Custom logging function for better readability.
 log_info() {
         sleep "0.3"
 
@@ -35,19 +33,17 @@ log_info() {
         { [[ "${1}" == "c" ]] && echo -e "\n\n${FULL_LOG}"; } || echo -e "${FULL_LOG}"
 }
 
-# Error handler function. This will show which command failed.
-handle_error () {
-    error_status=$?
-    command_line=${BASH_COMMAND}
-    error_line=${BASH_LINENO[0]}
-    log_info "$(date '+%Y-%m-%d %H:%M:%S') Error on line $error_line: command '${command_line}' exited with status: $error_status" |
-    tee -a error.log.txt
+handle_error() {
+        error_status="${?}"
+        command_line="${BASH_COMMAND}"
+        error_line="${BASH_LINENO[0]}"
+
+	log_info r "Error on line ${BLUE}${error_line}${RED}: command ${BLUE}'${command_line}'${RED} exited with status: ${BLUE}${error_status}"
 }
 
 trap 'handle_error' ERR
 trap 'handle_error' RETURN
 
-# File Associations with URL, Download Location, and Final Destination.
 declare -A associate_files
 
 associate_f() {
@@ -55,14 +51,11 @@ associate_f() {
     local url="${2}"
     local base_path="${3}"
 
-    # Constructing the final path by appending the key to the base path.
     local final_path="${base_path}/${key}"
 
     associate_files["${key}"]="${url} ${FILES_DIR}/${key} ${final_path}"
 }
 
-# Set file associations. Updating could be singular but there is no need
-# since it's instant and not problematic.
 update_associations() {
     associate_f "user.js" "${URL_USER_JS}" "${LIBREW_PROF_DIR}"
     associate_f "updater.sh" "${URL_UPDATER_SH}" "${LIBREW_PROF_DIR}"
@@ -76,40 +69,44 @@ update_associations
 
 move_file() {
     local key="${1}"
-    local custom_destination="${2:-}"  # Optional custom destination.
+    local custom_destination="${2:-}"
     local download_path final_destination
     IFS=' ' read -r _ download_path final_destination <<< "${associate_files[${key}]}"
 
-    # Move the file.
     mv "${download_path}" "${final_destination}"
 }
 
-# Display the progress bar.
 update_progress() {
-    local total="${1}"
-    local current="${2}"
-    local pct="$(( (current * 100) / total ))"
+        local total="${1}"
+        local current="${2}"
+        local pct="$(((current * 100) / total))"
+        local filled_blocks="$((pct * 65 / 100))"
+        local empty_blocks="$((65 - filled_blocks))"
+        local bar=''
 
-    # Clear the line and display the progress bar.
-    printf "\rProgress: [%-100s] %d%%" "$(printf "%-${pct}s" | tr ' ' '#')" "$pct"
+        for i in $(seq "1" "${filled_blocks}"); do
+                bar="${bar}${GREEN}#${NC}"
+        done
+
+        for i in $(seq "1" "${empty_blocks}"); do
+                bar="${bar}${RED}-${NC}"
+        done
+
+        echo -ne "\r\033[K${bar}${PURPLE} ${pct}%${NC}"
 }
 
-# Determine and handle download type.
 download_file() {
     local source="${1}"
     local dest="${2}"
 
-    # Check for file existence and skip downloading if it exists.
     [ -f "${dest}" ] && {
-        log_info "File ${dest} already exists, skipping download."
+        log_info b "File ${dest} already exists, skipping download."
         return
     }
 
-    # Handling regular file URLs.
     curl -L "${source}" -o "${dest}" > "/dev/null" 2>&1
 }
 
-# Function to Retrieve All Files with Progress Bar.
 retrieve_files() {
     mkdir -p "${FILES_DIR}"
     local total="$((${#associate_files[@]}))"
@@ -124,82 +121,121 @@ retrieve_files() {
     done
 }
 
-start_process() {
-    # Start librewolf in headless mode in order to create config directory for it.
-    librewolf --headless > "/dev/null" 2>&1 &
-    sleep "3"
-    killall "librewolf"
+create_profile() {
+	librewolf --headless > "/dev/null" 2>&1 &
+	sleep "3"
+	killall "librewolf"
+}
 
-    # Find the profile folder.
-    LIBREW_CONFIG_DIR="${HOME}/.librewolf"
-    LIBREW_PROF_NAME="$(sed -n "/Default=.*.default-release/ s/.*=//p" "${LIBREW_CONFIG_DIR}/profiles.ini")"
-    LIBREW_PROF_DIR="${LIBREW_CONFIG_DIR}/${LIBREW_PROF_NAME}"
-    LIBREW_CHROME_DIR="${LIBREW_PROF_DIR}/chrome"
+initiate_vars() {
+	LIBREW_CONFIG_DIR="${HOME}/.librewolf"
+	LIBREW_PROF_NAME="$(sed -n "/Default=.*.default-release/ s/.*=//p" "${LIBREW_CONFIG_DIR}/profiles.ini")"
+	LIBREW_PROF_DIR="${LIBREW_CONFIG_DIR}/${LIBREW_PROF_NAME}"
+	LIBREW_CHROME_DIR="${LIBREW_PROF_DIR}/chrome"
 
-    # userChrome.css and userContent.css files need to be placed in the chrome dir.
-    mkdir -p "${LIBREW_CHROME_DIR}"
+	mkdir -p "${LIBREW_CHROME_DIR}"
 
-    # Since we have new variables, renew the associations in order to move files properly.
-    update_associations
+	update_associations
+}
 
-    # Move the Librewolf configuration files.
-    move_file "user.js"
-    move_file "user-overrides.js"
-    move_file "updater.sh"
-    move_file "userChrome.css"
-    move_file "userContent.css"
+place_files() {
+	move_file "user.js"
+	move_file "user-overrides.js"
+	move_file "updater.sh"
+	move_file "userChrome.css"
+	move_file "userContent.css"
+}
 
-    # We need to make Arkenfox.js script executable.
-    # And the user needs to own the .librewolf directory.
-    chmod +x "${LIBREW_PROF_DIR}/updater.sh"
-    doas chown -R "${USERNAME}":"${USERNAME}" "${HOME}"
+run_arkenfox() {
+	chmod +x "${LIBREW_PROF_DIR}/updater.sh"
+	doas chown -R "${USERNAME}":"${USERNAME}" "${HOME}"
 
-    # Run the Arkenfox.js script to apply the configuration files.
-    "${LIBREW_PROF_DIR}/updater.sh" -s -u
+	"${LIBREW_PROF_DIR}/updater.sh" -s -u
+}
 
-    # Create the directory for the extensions.
-    EXT_DIR="${LIBREW_PROF_DIR}/extensions"
-    mkdir -p "${EXT_DIR}"
+install_extensions() {
+	EXT_DIR="${LIBREW_PROF_DIR}/extensions"
+	mkdir -p "${EXT_DIR}"
 
-    # These are the extensions we want to download.
-    ADDON_NAMES=("ublock-origin" "istilldontcareaboutcookies" "vimium-ff" "minimalist-open-in-mpv" "load-reddit-images-directly")
+	ADDON_NAMES=("ublock-origin" "istilldontcareaboutcookies" "vimium-ff" "minimalist-open-in-mpv" "load-reddit-images-directly")
 
-    # For loop to download, extract, modify and move all extension properly.
-    # Loop all listed addons.
-    for ADDON_NAME in "${ADDON_NAMES[@]}"
-    do
-        # We first find the addon URL, curl it and then find the proper download link.
-        ADDON_URL="$(curl --silent "https://addons.mozilla.org/en-US/firefox/addon/${ADDON_NAME}/" |
-    		   grep -o 'https://addons.mozilla.org/firefox/downloads/file/[^"]*')"
+	for ADDON_NAME in "${ADDON_NAMES[@]}"
+	do
+		ADDON_URL="$(curl --silent "https://addons.mozilla.org/en-US/firefox/addon/${ADDON_NAME}/" |
+			   grep -o 'https://addons.mozilla.org/firefox/downloads/file/[^"]*')"
 
-    	# We download the extension file with the extension.xpi name.
-    	curl -sL "${ADDON_URL}" -o "extension.xpi"
+		curl -sL "${ADDON_URL}" -o "extension.xpi"
 
-    	# We unzip the files and search for the extension ID since librewolf
-    	# Requires the ID  in the name. We also manipulate the text to make it
-    	# usable.
-    	EXT_ID="$(unzip -p "extension.xpi" "manifest.json" | grep "\"id\"")"
-    	EXT_ID="${EXT_ID%\"*}"
-    	EXT_ID="${EXT_ID##*\"}"
+		EXT_ID="$(unzip -p "extension.xpi" "manifest.json" | grep "\"id\"")"
+		EXT_ID="${EXT_ID%\"*}"
+		EXT_ID="${EXT_ID##*\"}"
 
-    	# We move the extension file to its proper location by naming it with
-    	# its extension ID.
-    	mv extension.xpi "${EXT_DIR}/${EXT_ID}.xpi"
-    done
+		mv extension.xpi "${EXT_DIR}/${EXT_ID}.xpi"
+	done
+}
 
-    # Move the ublock setting backup in order to use later.
-    move_file "ublock_backup.txt"
+place_ublock_backup() {
+	move_file "ublock_backup.txt"
 }
 
 main() {
-    log_info "Retrieving the configuration files..."
-    retrieve_files
-    log_info "All files have ben retrieved."
+        declare -A tasks
+        tasks["retrieve_files"]="Retrieve the files.
+		        Files retrieved."
 
-    log_info "Starting the process..."
-    start_process
-    log_info "The process has finished successfully."
-    log_info "Librewolf is ready!"
+        tasks["create_profile"]="Create a profile.
+		           A profile created."
+
+        tasks["initiate_vars"]="Initiate new variables.
+		             New variabeles initiated."
+
+        tasks["place_files"]="Place the necessary files.
+			The necessary files placed."
+
+        tasks["run_arkenfox"]="Run the ArkenFox script.
+                                 The Arkenfox script successful."
+
+        tasks["install_extensions"]="Install browser extensions.
+                                 Browser extensions installed."
+
+        tasks["place_ublock_backup"]="Place uBlock Backup.
+                                uBlock Backup placed."
+
+        task_order=("retrieve_files" "create_profile" "initiate_vars" "place_files"
+                "run_arkenfox" "install_extensions" "place_ublock_backup")
+
+        TOTAL_TASKS="${#tasks[@]}"
+        TASK_NUMBER="1"
+
+        trap '[[ -n "${log_pid}" ]] && kill "${log_pid}" 2> "/dev/null"' EXIT SIGINT
+
+        for function in "${task_order[@]}"; do
+                description="${tasks[${function}]}"
+                description="${description%%$'\n'*}"
+
+		done_message="$(echo "${tasks[${function}]}" | tail -n "1" | sed 's/^[[:space:]]*//g')"
+
+		log_info b "${description}"
+
+		[[ "${TASK_NUMBER}" -gt "2" ]] && {
+                        (
+                                sleep "60"
+                                while true; do
+                                        log_info c "${description}"
+                                        sleep "60"
+                                done
+                        ) &
+                        log_pid="${!}"
+                }
+
+		"${function}"
+
+		kill "${log_pid}" 2> "/dev/null" || true
+
+		log_info g "${done_message}"
+
+		[[ "${TASK_NUMBER}" -le "${#task_order[@]}" ]] && ((TASK_NUMBER++))
+        done
 }
 
 main

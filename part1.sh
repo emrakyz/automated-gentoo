@@ -371,5 +371,3 @@ main() {
 }
 
 main
-
-trap 'kill ${log_pid}' EXIT
