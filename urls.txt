@@ -1,0 +1,45 @@
+# Define URLs for the files here:
+# Useflags for specific packages.
+URL_DOTFILES="https://github.com/emrakyz/dotfiles.git"
+
+# PACKAGES WE INSTALL ##
+URL_DEPENDENCIES_TXT="https://raw.githubusercontent.com/emrakyz/dotfiles/main/dependencies.txt"
+
+# PORTAGE FILES #
+URL_PACKAGE_USE="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/package.use"
+URL_ACCEPT_KEYWORDS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/package.accept_keywords"
+URL_PACKAGE_ENV="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/package.env"
+URL_USE_MASK="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/profile/use.mask"
+URL_PACKAGE_UNMASK="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/profile/package.unmask"
+
+# SPECIFIC COMPILER ENVIRONMENTS #
+URL_CLANG_O3_LTO="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/env/clang_o3_lto"
+URL_CLANG_O3_LTO_FPIC="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/env/clang_o3_lto_fpic"
+URL_GCC_O3_LTO="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/env/gcc_o3_lto"
+URL_GCC_O3_LTO_FFATLTO="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/env/gcc_o3_lto_ffatlto"
+URL_GCC_O3_NOLTO="https://raw.githubusercontent.com/emrakyz/dotfiles/main/portage/env/gcc_o3_nolto"
+
+# LINUX KERNEL CONFIGURATION #
+URL_KERNEL_CONFIG="https://github.com/emrakyz/dotfiles/blob/main/kernel_6_7_0_config"
+URL_TEXLIVE_PROFILE="https://raw.githubusercontent.com/emrakyz/dotfiles/main/texlive.profile"
+URL_TEXLIVE_INSTALL="https://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz"
+
+# ZSH PLUGINS #
+URL_FZF_TAB="https://github.com/Aloxaf/fzf-tab.git"
+URL_ZSH_AUTOSUGGESTIONS="https://github.com/zsh-users/zsh-autosuggestions.git"
+URL_SYNTAX_HIGHLIGHT="https://github.com/zdharma-continuum/fast-syntax-highlighting.git"
+URL_POWERLEVEL10K="https://github.com/romkatv/powerlevel10k.git"
+URL_WAL_VIM="https://raw.githubusercontent.com/emrakyz/dotfiles/main/wal.vim"
+
+# BLACKLISTED ADRESSES TO BLOCK #
+# THE BELOW LINK BLACKLISTS ADWARE, #
+# MALWARE, FAKENEWS, GAMBLING, PORN, SOCIAL MEDIA #
+URL_HOSTS_BLACKLIST="https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn-social/hosts"
+
+# Settings for Busybox to only enable udhcpc and its scripts.
+URL_BUSYBOX_CONFIG="https://raw.githubusercontent.com/emrakyz/dotfiles/main/busybox-9999"
+URL_DEFAULT_SCRIPT="https://raw.githubusercontent.com/emrakyz/dotfiles/main/default.script"
+URL_UDHCPC_INIT="https://raw.githubusercontent.com/emrakyz/dotfiles/main/udhcpc"
+
+# Local Gentoo Repos.
+URL_LOCAL="https://github.com/emrakyz/local.git"
