@@ -116,7 +116,7 @@ handle_disk() {
                         [[ -z "${selected_size}" ]] && {
                                 CHOSEN_SIZE="100%"
                                 echo -e "${GREEN}You have selected to use all of the remaining space."
-                                confirm_action && echo "" && break
+                                confirm_action && echo "" ; break
                         }
                         [[ "${selected_size}" =~ ^[1-9][0-9]*[GM]?i?B?$ ]] && {
                                 size="${selected_size%%[GMiB]*}"
@@ -125,7 +125,7 @@ handle_disk() {
 				[[ "${size}" -ge "24000" ]] && {
                                         CHOSEN_SIZE="${selected_size}"
                                         echo -e "${GREEN}You have selected a partition size of ${CHOSEN_SIZE}."
-                                        confirm_action && echo "" && break || {
+                                        confirm_action && echo "" ; break || {
                                                 echo -e "${RED}Declined. Restarting the process...${NC}" && continue
                                         }
                                 }
@@ -135,7 +135,7 @@ handle_disk() {
                         echo -e "It should at least be 24G or 24GiB or 24000M or 24000MiB"
                 done
 
-		parted -s "${CHOSEN_DEVICE}" mkpart "Linux Filesystem" 250MiB "${CHOSEN_SIZE}"
+		parted -s "${CHOSEN_DEVICE}" mkpart "linux" 250MiB "${CHOSEN_SIZE}"
                 parted -s "${CHOSEN_DEVICE}" type "2" "0fc63daf-8483-4772-8e79-3d69d8477de4"
 
 		echo -e "${WHITE}Select a file system format for ROOT:${NC}"
@@ -152,7 +152,7 @@ handle_disk() {
 
 			read -r SELECTED_FS_TYPE && CHOSEN_FS="${FS_TYPES[SELECTED_FS_TYPE - 1]}"
 
-			[[ -z "${CHOSEN_FS}" ]] && {
+			[[ -z "${CHOSEN_FS}" ]] || {
                                 echo -e "${GREEN}You have selected ${CHOSEN_FS} file system for ROOT."
                         } || {
                                 echo -e "${RED}Invalid selection. Please select a valid number."
