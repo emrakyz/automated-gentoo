@@ -80,7 +80,7 @@ handle_disk() {
                                 echo -e "${PURPLE}$((i + 1))) ${YELLOW}${BLOCK_DEVICES[i]}${NC}"
                         done
 
-			echo -ne "${WHITE}Enter the partition of your choice: ${CYAN}"
+			echo -ne "${WHITE}Enter the device of your choice: ${CYAN}"
 
 			read -r SELECTED_DEVICE && CHOSEN_DEVICE="${BLOCK_DEVICES[SELECTED_DEVICE - 1]}"
 
@@ -99,11 +99,9 @@ handle_disk() {
                         parted -s "${CHOSEN_DEVICE}" rm "${part}"
                 done; } || true
 
-		emerge --oneshot --quiet-build --ask=n sys-block/parted sys-fs/f2fs-tools sys-fs/dosfstools
-
 		parted -s "${CHOSEN_DEVICE}" mklabel gpt
-                parted -s "${CHOSEN_DEVICE}" mkpart "EFI System Partition" 1MiB 250MiB
-                parted -s "${CHOSEN_DEVICE}" set "1" esp on
+		parted -s "${CHOSEN_DEVICE}" mkpart "efi" fat32 1MiB 250MiB
+		parted -s "${CHOSEN_DEVICE}" set 1 esp on
 
 		BOOT_PARTITION="$(lsblk "${CHOSEN_DEVICE}" -lnfo NAME | sed -n 's/^/\/dev\//; 2p')"
 
