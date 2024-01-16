@@ -73,8 +73,7 @@ handle_disk() {
 	echo -e "${NC}"
 
 	[[ "${INPUT}" == "DELETE_EVERYTHING" ]] && {
-                IFS=$'\n' read -r -d '' -a BLOCK_DEVICES < <(lsblk -lnfo NAME,SIZE | sed 's/^/\/dev\//; /^[^ ]*[a-mo-z][0-9] /d')
-                unset IFS
+		mapfile -t BLOCK_DEVICES < <(lsblk -lnfo NAME,SIZE | sed 's/^/\/dev\//; /^[^ ]*[a-mo-z][0-9] /d')
 
                 while true; do
                         for i in "${!BLOCK_DEVICES[@]}"; do
@@ -96,9 +95,9 @@ handle_disk() {
 
 		echo -e "${NC}"
 
-		parted -s "${CHOSEN_DEVICE}" print | sed -n 's/^ *\([0-9]\) .*/\1/p' | while read -r part; do
+		{ parted -s "${CHOSEN_DEVICE}" print | sed -n 's/^ *\([0-9]\) .*/\1/p' | while read -r part; do
                         parted -s "${CHOSEN_DEVICE}" rm "${part}"
-                done
+                done; } || true
 
 		emerge --oneshot --quiet-build --ask=n sys-block/parted sys-fs/f2fs-tools sys-fs/dosfstools
 
@@ -218,16 +217,14 @@ find_tarball_url() {
 }
 
 detect_root_partition() {
-        IFS=$'\n' read -r -d '' -a partitions < <(lsblk -lnfo NAME,FSTYPE,SIZE |
+        mapfile -t partitions < <(lsblk -lnfo NAME,FSTYPE,SIZE |
                 sed -E 's/^/\/dev\//
 		/ext4|f2fs/!d
 		/^[^ ]*[a-z] /d
 		/^[^ ]*n[0-9][^p] /d
 		/^[^ ]+\s+[^ ]+\s*$/d')
 
-        unset IFS
-
-        [[ "${partitions}" =~ [^[:space:]] ]] || {
+        [[ -z "${!partitions[*]}" ]] && {
                 log_info r "You do not have any eligible partition for ROOT."
                 log_info r "Boot partition should be formatted with vfat FAT32."
                 log_info r "Root partition should be formatted with ext4 or f2fs."
