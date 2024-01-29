@@ -3,7 +3,8 @@
 # This script installs and configures a fully functioning, completely
 # configured Gentoo Linux system. The script should be run after chrooting.
 
-source urls.txt filepaths.txt
+source "urls.txt"
+source "filepaths.txt"
 
 set -Eeo pipefail
 
@@ -60,7 +61,7 @@ cleanup_logs() {
         sed -i 's/\x1b\[[0-9;]*m//g' "error_log.txt"
 }
 
-trap cleanup_logs EXIT
+trap cleanup_logs EXIT SIGINT
 
 prepare_env() {
         source "/etc/profile"
@@ -191,7 +192,8 @@ check_first_vars() {
 
         DISK="${PARTITION_BOOT%[0-9]*}"
         DISK="${DISK%p}"
-        fdisk -l "${DISK}" | grep -q "Disklabel type: gpt" || {
+
+	fdisk -l "${DISK}" | grep -q "Disklabel type: gpt" || {
                 log_info r "Your disk device is not 'GPT labeled'. Exit chroot first."
                 log_info r "Use fdisk on your device without its partition: '/dev/nvme0n1'"
                 log_info r "Delete every partition by typing 'd' and 'enter' first."
@@ -201,7 +203,8 @@ check_first_vars() {
         }
 
         BOOT_PART_TYPE="$(lsblk -nlo PARTTYPE "${PARTITION_BOOT}")"
-        [[ "${BOOT_PART_TYPE}" == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]] || {
+
+	[[ "${BOOT_PART_TYPE}" == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]] || {
                 log_info r "The boot partition does not have 'EFI System' type."
                 log_info r "Use fdisk on your device '/dev/nvme0n1' without its partition."
                 log_info r "Type 't' and enter. Select the related partition. Then make it 'EFI System'."
@@ -209,7 +212,8 @@ check_first_vars() {
         }
 
         BOOT_FS_TYPE="$(blkid -o value -s TYPE "${PARTITION_BOOT}")"
-        [[ "${BOOT_FS_TYPE}" == "vfat" ]] || {
+
+	[[ "${BOOT_FS_TYPE}" == "vfat" ]] || {
                 log_info r "The boot partition should be formatted as 'vfat FAT32'."
                 log_info r "Use 'mkfs.vfat -F 32 /dev/<your-partition>'."
                 log_info r "You need 'sys-fs/dosfstools' for this operation."
@@ -217,7 +221,8 @@ check_first_vars() {
         }
 
         ROOT_PART_TYPE="$(lsblk -nlo PARTTYPE "${PARTITION_ROOT}")"
-        [[ "${ROOT_PART_TYPE}" == "0fc63daf-8483-4772-8e79-3d69d8477de4" ]] || {
+
+	[[ "${ROOT_PART_TYPE}" == "0fc63daf-8483-4772-8e79-3d69d8477de4" ]] || {
                 log_info r "The root partition does not have 'Linux Filesystem' type."
                 log_info r "Use fdisk on your device '/dev/nvme0n1' without its partition."
                 log_info r "Type 't' and enter. Select the related partition. Then make it 'Linux Filesystem'."
@@ -225,28 +230,27 @@ check_first_vars() {
         }
 
         ROOT_FS_TYPE="$(blkid -o value -s TYPE "${PARTITION_ROOT}")"
-        [[ "${ROOT_FS_TYPE}" =~ ^(ext4|f2fs)$ ]] || {
-                log_info r "The root partition is not formatted with 'ext4'."
+
+	[[ "${ROOT_FS_TYPE}" =~ ^(ext4|f2fs)$ ]] || {
+                log_info r "The root partition is not formatted with 'ext4' or 'f2fs'."
                 log_info r "Use 'mkfs.ext4 /dev/<your-partition>'."
+		log_info r "Or check the documentation for mkfs.f2fs"
                 exit "1"
         }
 
         TZ_FILE="/usr/share/zoneinfo/${TIME_ZONE}"
-        [[ -f "${TZ_FILE}" ]] || {
+
+	[[ -f "${TZ_FILE}" ]] || {
                 log_info r "The timezone ${TIME_ZONE} is invalid or does not exist."
                 exit "1"
         }
 
-        {
-                [[ -n "${UUID_ROOT}" ]] && [[ -n "${UUID_BOOT}" ]] && [[ -n "${PARTUUID_ROOT}" ]]
-        } || {
+        [[ -n "${UUID_ROOT}" ]] && [[ -n "${UUID_BOOT}" ]] && [[ -n "${PARTUUID_ROOT}" ]] || {
                 log_info r "Critical partition information is missing."
                 exit "1"
         }
 
-        {
-                [[ ${valid_gpus[*]} =~ ${selected_gpu} && "${selected_gpu}" =~ [^[:space:]] ]]
-        } || {
+        [[ ${valid_gpus[*]} =~ ${selected_gpu} && "${selected_gpu}" =~ [^[:space:]] ]] || {
                 log_info r "Invalid GPU. Please enter a valid GPU."
                 exit "1"
         }
@@ -280,7 +284,7 @@ check_credentials() {
 
 sync_repos() {
         emerge --sync --quiet
-        emerge "dev-vcs/git"
+        emerge --quiet-build "dev-vcs/git"
 }
 
 declare -A associate_files
@@ -326,9 +330,7 @@ update_associations() {
 update_associations
 
 move_file() {
-        local key=$1
-        local custom_destination=${2:-}
-        local download_path final_destination
+        local key="${1}"
         read -r _ download_path final_destination <<< "${associate_files[${key}]}"
 
         mv "${download_path}" "${final_destination}"
@@ -415,7 +417,7 @@ renew_env() {
 }
 
 configure_locales() {
-        sed -i "/#en_US.UTF/ s/#//g" /etc/locale.gen
+        sed -i "/#en_US.UTF/ s/#//g" "/etc/locale.gen"
 
         locale-gen
 
@@ -451,13 +453,13 @@ configure_portage() {
         {
                 echo 'ACCEPT_LICENSE="*"'
 
-                echo "VIDEO_CARDS=\"${GPU}\""
+                echo "VIDEO_CARDS=\"${selected_gpu}\""
 
-                echo "MAKEOPTS=\"-j$(($(nproc) - 2)) -l$(($(nproc) - 2))\""
+                echo "MAKEOPTS=\"-j$(($(nproc) - 2)) -l$(($(nproc) - 1))\""
 
-                echo 'PORTAGE_SCHEDULING_POLICY="idle"'
+                eselect profile list 2>&1 | grep -q "*" | grep -q "musl" || echo 'PORTAGE_SCHEDULING_POLICY="idle"'
 
-                echo "EMERGE_DEFAULT_OPTS=\"--jobs=1 --load-average=$(($(nproc) - 2)) --keep-going --verbose --quiet-build --with-bdeps=y --complete-graph=y --deep\""
+                echo "EMERGE_DEFAULT_OPTS=\"--jobs=1 --load-average=$(($(nproc) - 1)) --keep-going --verbose --quiet-build --with-bdeps=y --complete-graph=y --deep\""
 
                 echo 'USE="-* minimal wayland pipewire clang native-symlinks lto pgo jit xs orc threads asm openmp libedit custom-cflags system-man system-libyaml system-lua system-bootstrap system-llvm system-lz4 system-sqlite system-ffmpeg system-icu system-av1 system-harfbuzz system-jpeg system-libevent system-librnp system-libvpx system-png system-python-libs system-webp system-ssl system-zlib system-boost"'
 
@@ -484,11 +486,11 @@ configure_useflags() {
 
 move_compiler_env() {
         mkdir -p "${PORTAGE_ENV_DIR}"
-        move_file clang_o3_lto
-        move_file clang_o3_lto_fpic
-        move_file gcc_o3_lto
-        move_file gcc_o3_nolto
-        move_file gcc_o3_lto_ffatlto
+        move_file "clang_o3_lto"
+        move_file "clang_o3_lto_fpic"
+        move_file "gcc_o3_lto"
+        move_file "gcc_o3_nolto"
+        move_file "gcc_o3_lto_ffatlto"
 }
 
 update_system() {
@@ -508,23 +510,23 @@ update_system() {
 build_clang_rust() {
         NEW_MAKEOPTS="$(("$(nproc)" * 2 / 3))"
 
-        MAKEOPTS="-j${NEW_MAKEOPTS} -l${NEW_MAKEOPTS}" "emerge dev-lang/rust" "sys-devel/clang"
+        MAKEOPTS="-j${NEW_MAKEOPTS} -l${NEW_MAKEOPTS}" emerge "dev-lang/rust" "sys-devel/clang"
 
         move_file "package.env"
 
         renew_env
 
-        MAKEOPTS="-j${NEW_MAKEOPTS} -l${NEW_MAKEOPTS}" emerge --oneshot "sys-devel/clang" "dev-libs/jsoncpp" "dev-libs/libuv" "sys-devel/llvm" "sys-devel/llvm-common" "sys-devel/llvm-toolchain-symlinks" "sys-devel/lld" "sys-libs/libunwind" "sys-libs/compiler-rt" "sys-libs/compiler-rt-sanitizers" "sys-devel/clang-common" "dev-util/cmake" "sys-devel/clang-runtime" "sys-devel/clang-toolchain-symlinks" "sys-libs/libomp" "dev-lang/rust" "dev-lang/perl" "dev-lang/python" "dev-util/ninja" "dev-build/samurai" "dev-python/sphinx" "dev-libs/libedit"
+        MAKEOPTS="-j${NEW_MAKEOPTS} -l$(("${NEW_MAKEOPTS}" + 1 ))" emerge --oneshot "sys-devel/clang" "dev-libs/jsoncpp" "dev-libs/libuv" "sys-devel/llvm" "sys-devel/llvm-common" "sys-devel/llvm-toolchain-symlinks" "sys-devel/lld" "sys-libs/libunwind" "sys-libs/compiler-rt" "sys-libs/compiler-rt-sanitizers" "sys-devel/clang-common" "dev-build/cmake" "sys-devel/clang-runtime" "sys-devel/clang-toolchain-symlinks" "sys-libs/libomp" "dev-lang/rust" "dev-lang/perl" "dev-lang/python" "dev-build/ninja" "dev-build/samurai" "dev-python/sphinx" "dev-libs/libedit"
 
         emerge --depclean
 
-        eselect profile list 2>&1 | grep "*" | grep "musl" > "/dev/null" || {
+        eselect profile list 2>&1 | grep -q "*" | grep -q "musl" || {
 		emerge "sys-devel/gcc"
         	renew_env
         	emerge "sys-libs/glibc" "sys-devel/binutils"
 	} || log_info b "The user has the Musl profile. Skipping GCC setup."
 
-        emerge -e @world --exclude 'sys-devel/clang dev-libs/jsoncpp dev-libs/libuv sys-devel/llvm sys-devel/llvm-common sys-devel/llvm-toolchain-symlinks sys-devel/lld sys-libs/libunwind sys-libs/compiler-rt sys-libs/compiler-rt-sanitizers sys-devel/clang-common dev-util/cmake sys-devel/clang-runtime sys-devel/clang-toolchain-symlinks sys-libs/libomp dev-lang/rust dev-lang/perl dev-lang/python dev-util/ninja dev-build/samurai dev-python/sphinx dev-libs/libedit sys-devel/gcc sys-libs/glibc sys-devel/binutils'
+        emerge -e @world --exclude 'sys-devel/clang dev-libs/jsoncpp dev-libs/libuv sys-devel/llvm sys-devel/llvm-common sys-devel/llvm-toolchain-symlinks sys-devel/lld sys-libs/libunwind sys-libs/compiler-rt sys-libs/compiler-rt-sanitizers sys-devel/clang-common dev-build/cmake sys-devel/clang-runtime sys-devel/clang-toolchain-symlinks sys-libs/libomp dev-lang/rust dev-lang/perl dev-lang/python dev-build/ninja dev-build/samurai dev-python/sphinx dev-libs/libedit sys-devel/gcc sys-libs/glibc sys-devel/binutils'
 }
 
 set_timezone() {
@@ -548,19 +550,18 @@ set_cpu_microcode() {
 }
 
 set_linux_firmware() {
-        USE="-compress-xz" emerge "sys-kernel/linux-firmware"
+        emerge "sys-kernel/linux-firmware"
 
-        {
-                [[ "${selected_gpu}" == "nvidia" ]] && {
-                        emerge --oneshot "sys-apps/pciutils"
+        [[ "${selected_gpu}" == "nvidia" ]] && {
+        	emerge --oneshot "sys-apps/pciutils"
 
-                        GPU_CODE="$(lspci | grep -i 'vga\|3d\|2d' |
-                                sed -n '/NVIDIA Corporation/{s/.*NVIDIA Corporation \([^ ]*\).*/\L\1/p}' |
-                                sed 's/m$//')"
-                } || true
+                GPU_CODE="$(lspci | grep -i 'vga\|3d\|2d' |
+                        sed -n '/NVIDIA Corporation/{s/.*NVIDIA Corporation \([^ ]*\).*/\L\1/p}' |
+                        sed 's/m$//')"
 
                 sed -i '/^nvidia\/'"${GPU_CODE}"'/!d' "/etc/portage/savedconfig/sys-kernel"/linux-firmware-*
-        } || log_info b "Not using Nvidia... Skipping the debloating process for Linux Firmware."
+
+	} || log_info b "Not using Nvidia... Skipping the debloating process for Linux Firmware."
 }
 
 build_freetype() {
@@ -590,10 +591,10 @@ build_linux() {
 
         make -C "${LINUX_DIR}" olddefconfig
 
-        make -C "${LINUX_DIR}" -j"$(nproc)"
+	make -C "${LINUX_DIR}" -j"$(nproc)" -l"$(($(nproc) + 1))"
 
-        {
-                [[ "${selected_gpu}" == "nvidia" ]] && emerge "x11-drivers/nvidia-drivers"
+        [[ "${selected_gpu}" == "nvidia" ]] && {
+		emerge "x11-drivers/nvidia-drivers"
                 echo "options nvidia NVreg_UsePageAttributeTable=1" >> "/etc/modprobe.d/nvidia.conf"
         } || log_info b "Not using Nvidia... Skipping..."
 
@@ -611,10 +612,11 @@ build_linux() {
 generate_fstab() {
         echo "UUID=${UUID_BOOT} /boot vfat defaults,noatime 0 2" > "/etc/fstab"
 
-        echo "UUID=${UUID_ROOT} / ext4 defaults,noatime 0 1" >> "/etc/fstab"
+        echo "UUID=${UUID_ROOT} / ${ROOT_FS_TYPE} defaults,noatime 0 1" >> "/etc/fstab"
 
-        [[ "${EXTERNAL_HDD}" =~ [Yy](es)? ]] && {
-                echo "UUID=${EXTERNAL_UUID} /mnt/harddisk ${partition_fs_type} defaults,uid=1000,gid=1000,umask=022,noatime,nofail 0 2" >> "/etc/fstab" || true ; }
+        [[ "${EXTERNAL_HDD}" =~ ^[yY](es)?$ ]] && {
+                echo "UUID=${EXTERNAL_UUID} ${mount_path} ${partition_fs_type} defaults,uid=1000,gid=1000,umask=022,noatime,nofail 0 2" >> "/etc/fstab"
+        } || true
 }
 
 configure_hosts() {
@@ -696,11 +698,9 @@ configure_accounts() {
 configure_repos() {
         emerge "app-eselect/eselect-repository"
 
-        eselect repository remove "gentoo"
+	eselect repository remove "gentoo" && rm -rf "/var/db/repos/gentoo"
 
         eselect repository enable "gentoo"
-
-        rm -rf "/var/db/repos/gentoo"
 
         eselect repository enable "guru"
         eselect repository add "librewolf" git "https://codeberg.org/librewolf/gentoo.git"
@@ -817,7 +817,7 @@ create_boot_entry() {
                 echo "${PARTITION_BOOT}" | sed -E 's/.*sd[a-zA-Z]*([0-9]+)$/\1/'
         })"
 
-        efibootmgr -c -d "/dev/${DISK}" -p "${PARTITION}" -L "gentoo_hyprland" -l '\EFI\BOOT\BOOTX64.EFI'
+        efibootmgr -c -d "${DISK}" -p "${PARTITION}" -L "gentoo_hyprland" -l '\EFI\BOOT\BOOTX64.EFI'
 
         emerge --depclean
 }

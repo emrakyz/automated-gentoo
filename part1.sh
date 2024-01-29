@@ -284,10 +284,6 @@ prepare_chroot() {
         mount --make-slave "/mnt/gentoo/run"
 }
 
-execute_chroot() {
-        chroot "/mnt/gentoo" "/bin/bash"
-}
-
 main() {
         declare -A tasks
         tasks["handle_disk"]="Prepare the disk.
@@ -323,18 +319,13 @@ main() {
         tasks["prepare_chroot"]="Prepare the chroot environment.
                            Chroot environment prepared."
 
-        tasks["execute_chroot"]="Execute Chroot.
-                           Chroot executed."
-
         task_order=("handle_disk" "select_profile" "find_tarball_url" "detect_root_partition"
                 "mount_root_partition" "retrieve_the_tarball" "extract_the_tarball"
                 "remove_the_tarball" "create_repos_conf" "create_resolv_conf"
-                "prepare_chroot" "execute_chroot")
+                "prepare_chroot")
 
         TOTAL_TASKS="${#tasks[@]}"
         TASK_NUMBER="1"
-
-        trap '[[ -n "${log_pid}" ]] && kill "${log_pid}" 2> "/dev/null"' EXIT SIGINT
 
         for function in "${task_order[@]}"; do
                 description="${tasks[${function}]}"
@@ -344,25 +335,14 @@ main() {
 
 		log_info b "${description}"
 
-		[[ "${TASK_NUMBER}" -gt "2" ]] && {
-                        (
-                                sleep "60"
-                                while true; do
-                                        log_info c "${description}"
-                                        sleep "60"
-                                done
-                        ) &
-                        log_pid="${!}"
-                }
-
 		"${function}"
-
-		kill "${log_pid}" 2> "/dev/null" || true
 
 		log_info g "${done_message}"
 
-		[[ "${TASK_NUMBER}" -le "${#task_order[@]}" ]] && ((TASK_NUMBER++))
+		[[ "${TASK_NUMBER}" -le "${#task_order[@]}" ]] && ((TASK_NUMBER++)) || break
         done
 }
 
 main
+echo "Executing chroot..."
+chroot "/mnt/gentoo" "/bin/bash" && kill "0"

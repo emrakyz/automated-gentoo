@@ -1,9 +1,5 @@
 #!/bin/bash
 
-GREEN='\e[1;92m' RED='\e[1;91m' BLUE='\e[1;94m'
-PURPLE='\e[1;95m' YELLOW='\e[1;93m' NC='\033[0m'
-CYAN='\e[1;96m' WHITE='\e[1;97m'
-
 URL_USER_JS="https://raw.githubusercontent.com/arkenfox/user.js/master/user.js"
 URL_UPDATER_SH="https://raw.githubusercontent.com/arkenfox/user.js/master/updater.sh"
 URL_USER_OVERRIDES_JS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/user-overrides.js"
