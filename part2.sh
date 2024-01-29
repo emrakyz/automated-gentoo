@@ -1002,7 +1002,7 @@ main() {
 
 		log_info g "${done_message}"
 
-		[[ "${TASK_NUMBER}" -le "${#task_order[@]}" ]] && ((TASK_NUMBER++))
+		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++)) || break
         done
 }
 
