@@ -180,6 +180,8 @@ install_extensions() {
 
 place_ublock_backup() {
 	move_file "ublock_backup.txt"
+
+        log_info g "The script has successfully finished."
 }
 
 main() {
@@ -238,7 +240,7 @@ main() {
 
 		log_info g "${done_message}"
 
-		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++)) || break
+		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++))
         done
 }
 
