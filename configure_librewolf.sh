@@ -161,7 +161,7 @@ install_extensions() {
 	EXT_DIR="${LIBREW_PROF_DIR}/extensions"
 	mkdir -p "${EXT_DIR}"
 
-	ADDON_NAMES=("ublock-origin" "istilldontcareaboutcookies" "vimium-ff" "minimalist-open-in-mpv" "load-reddit-images-directly")
+	ADDON_NAMES=("ublock-origin" "istilldontcareaboutcookies" "vimium-ff" "minimalist-open-in-mpv" "load-reddit-images-directly" "dark-background-light-text" "sponsorblock" "dearrow")
 
 	for ADDON_NAME in "${ADDON_NAMES[@]}"
 	do
@@ -238,7 +238,7 @@ main() {
 
 		log_info g "${done_message}"
 
-		[[ "${TASK_NUMBER}" -le "${#task_order[@]}" ]] && ((TASK_NUMBER++))
+		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++)) || break
         done
 }
 
