@@ -152,7 +152,7 @@ place_files() {
 
 run_arkenfox() {
 	chmod +x "${LIBREW_PROF_DIR}/updater.sh"
-	doas chown -R "${USERNAME}":"${USERNAME}" "${HOME}"
+	sudo chown -R "${USERNAME}":"${USERNAME}" "${HOME}"
 
 	"${LIBREW_PROF_DIR}/updater.sh" -s -u
 }
