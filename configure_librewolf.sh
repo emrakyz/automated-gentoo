@@ -10,6 +10,7 @@ URL_USER_OVERRIDES_JS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/u
 URL_USERCHROME_CSS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/userChrome.css"
 URL_USERCONTENT_CSS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/userContent.css"
 URL_UBLOCK_BACKUP="https://raw.githubusercontent.com/emrakyz/dotfiles/main/ublock_backup.txt"
+URL_BYPASS_PAYWALLS="https://gitlab.com/magnolia1234/bpc-uploads/-/raw/master/bypass_paywalls_clean-3.5.8.0-custom.xpi"
 
 FILES_DIR="${HOME}/files"
 
@@ -51,33 +52,33 @@ trap 'handle_error' RETURN
 declare -A associate_files
 
 associate_f() {
-    local key="${1}"
-    local url="${2}"
-    local base_path="${3}"
+	local key="${1}"
+	local url="${2}"
+	local base_path="${3}"
 
-    local final_path="${base_path}/${key}"
+	local final_path="${base_path}/${key}"
 
-    associate_files["${key}"]="${url} ${FILES_DIR}/${key} ${final_path}"
+	associate_files["${key}"]="${url} ${FILES_DIR}/${key} ${final_path}"
 }
 
 update_associations() {
-    associate_f "user.js" "${URL_USER_JS}" "${LIBREW_PROF_DIR}"
-    associate_f "updater.sh" "${URL_UPDATER_SH}" "${LIBREW_PROF_DIR}"
-    associate_f "user-overrides.js" "${URL_USER_OVERRIDES_JS}" "${LIBREW_PROF_DIR}"
-    associate_f "userChrome.css" "${URL_USERCHROME_CSS}" "${LIBREW_CHROME_DIR}"
-    associate_f "userContent.css" "${URL_USERCONTENT_CSS}" "${LIBREW_CHROME_DIR}"
-    associate_f "ublock_backup.txt" "${URL_UBLOCK_BACKUP}" "${HOME}"
+	associate_f "user.js" "${URL_USER_JS}" "${LIBREW_PROF_DIR}"
+	associate_f "updater.sh" "${URL_UPDATER_SH}" "${LIBREW_PROF_DIR}"
+	associate_f "user-overrides.js" "${URL_USER_OVERRIDES_JS}" "${LIBREW_PROF_DIR}"
+	associate_f "userChrome.css" "${URL_USERCHROME_CSS}" "${LIBREW_CHROME_DIR}"
+	associate_f "userContent.css" "${URL_USERCONTENT_CSS}" "${LIBREW_CHROME_DIR}"
+	associate_f "ublock_backup.txt" "${URL_UBLOCK_BACKUP}" "${HOME}"
 }
 
 update_associations
 
 move_file() {
-    local key="${1}"
-    local custom_destination="${2:-}"
-    local download_path final_destination
-    IFS=' ' read -r _ download_path final_destination <<< "${associate_files[${key}]}"
+	local key="${1}"
+	local custom_destination="${2:-}"
+	local download_path final_destination
+	IFS=' ' read -r _ download_path final_destination <<< "${associate_files[${key}]}"
 
-    mv -fv "${download_path}" "${final_destination}"
+	mv -fv "${download_path}" "${final_destination}"
 }
 
 update_progress() {
@@ -100,33 +101,33 @@ update_progress() {
 }
 
 download_file() {
-    local source="${1}"
-    local dest="${2}"
+	local source="${1}"
+	local dest="${2}"
 
-    [ -f "${dest}" ] && {
-        log_info b "File ${dest} already exists, skipping download."
-        return
-    }
+	[ -f "${dest}" ] && {
+		log_info b "File ${dest} already exists, skipping download."
+		return
+	}
 
-    curl -fSLk "${source}" -o "${dest}" > "/dev/null" 2>&1
+	curl -fSLk "${source}" -o "${dest}" > "/dev/null" 2>&1
 }
 
 retrieve_files() {
-    mkdir -p "${FILES_DIR}"
-    local total="$((${#associate_files[@]}))"
-    local current="0"
+	mkdir -p "${FILES_DIR}"
+	local total="$((${#associate_files[@]}))"
+	local current="0"
 
-    for key in "${!associate_files[@]}"; do
-        current="$((current + 1))"
-        update_progress "${total}" "${current}"
+	for key in "${!associate_files[@]}"; do
+		current="$((current + 1))"
+		update_progress "${total}" "${current}"
 
-        IFS=' ' read -r source dest _ <<< "${associate_files[${key}]}"
-        download_file "${source}" "${dest}"
-    done
+		IFS=' ' read -r source dest _ <<< "${associate_files[${key}]}"
+		download_file "${source}" "${dest}"
+	done
 }
 
 create_profile() {
-	rm -rfv "${HOME}/.librewolf"
+	rm -rfv "${HOME}/.librewolf" "${FILES_DIR}" "${HOME}/ublock_backup.txt"
 	librewolf --headless > "/dev/null" 2>&1 &
 	sleep "3"
 
@@ -178,8 +179,18 @@ install_extensions() {
 		EXT_ID="${EXT_ID%\"*}"
 		EXT_ID="${EXT_ID##*\"}"
 
-		mv -fv extension.xpi "${EXT_DIR}/${EXT_ID}.xpi"
+		mv -fv "extension.xpi" "${EXT_DIR}/${EXT_ID}.xpi"
 	done
+}
+
+install_bypass_paywalls() {
+	curl -fSLk "${URL_BYPASS_PAYWALLS}" -o "extension.xpi"
+
+	EXT_ID="$(unzip -p "extension.xpi" "manifest.json" | grep "\"id\"")"
+	EXT_ID="${EXT_ID%\"*}"
+	EXT_ID="${EXT_ID##*\"}"
+
+	mv -fv "extension.xpi" "${EXT_DIR}/${EXT_ID}.xpi"
 }
 
 place_ublock_backup() {
@@ -206,11 +217,14 @@ main() {
         tasks["install_extensions"]="Install browser extensions.
                                  Browser extensions installed."
 
+	tasks["install_bypass_paywalls"]="Install bypass_paywalls_clean.
+                                 bypass_paywalls_clean installed."
+
         tasks["place_ublock_backup"]="Place uBlock Backup.
                                 uBlock Backup placed."
 
         task_order=("retrieve_files" "create_profile" "initiate_vars" "place_files"
-                "run_arkenfox" "install_extensions" "place_ublock_backup")
+                "run_arkenfox" "install_extensions" "install_bypass_paywalls" "place_ublock_backup")
 
         TOTAL_TASKS="${#tasks[@]}"
         TASK_NUMBER="1"
