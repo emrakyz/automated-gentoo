@@ -77,7 +77,7 @@ move_file() {
     local download_path final_destination
     IFS=' ' read -r _ download_path final_destination <<< "${associate_files[${key}]}"
 
-    mv "${download_path}" "${final_destination}"
+    mv -fv "${download_path}" "${final_destination}"
 }
 
 update_progress() {
@@ -108,7 +108,7 @@ download_file() {
         return
     }
 
-    curl -L "${source}" -o "${dest}" > "/dev/null" 2>&1
+    curl -fSLk "${source}" -o "${dest}" > "/dev/null" 2>&1
 }
 
 retrieve_files() {
@@ -126,9 +126,13 @@ retrieve_files() {
 }
 
 create_profile() {
+	rm -rfv "${HOME}/.librewolf"
 	librewolf --headless > "/dev/null" 2>&1 &
 	sleep "3"
-	killall "librewolf"
+
+	while pidof librewolf
+		do killall "librewolf"
+	done
 }
 
 initiate_vars() {
@@ -137,7 +141,7 @@ initiate_vars() {
 	LIBREW_PROF_DIR="${LIBREW_CONFIG_DIR}/${LIBREW_PROF_NAME}"
 	LIBREW_CHROME_DIR="${LIBREW_PROF_DIR}/chrome"
 
-	mkdir -p "${LIBREW_CHROME_DIR}"
+	mkdir -pv "${LIBREW_CHROME_DIR}"
 
 	update_associations
 }
@@ -152,36 +156,34 @@ place_files() {
 
 run_arkenfox() {
 	chmod +x "${LIBREW_PROF_DIR}/updater.sh"
-	sudo chown -R "${USERNAME}":"${USERNAME}" "${HOME}"
+	doas chown -Rv "${USERNAME}":"${USERNAME}" "${HOME}"
 
 	"${LIBREW_PROF_DIR}/updater.sh" -s -u
 }
 
 install_extensions() {
 	EXT_DIR="${LIBREW_PROF_DIR}/extensions"
-	mkdir -p "${EXT_DIR}"
+	mkdir -pv "${EXT_DIR}"
 
 	ADDON_NAMES=("ublock-origin" "istilldontcareaboutcookies" "vimium-ff" "minimalist-open-in-mpv" "load-reddit-images-directly" "dark-background-light-text" "sponsorblock" "dearrow")
 
 	for ADDON_NAME in "${ADDON_NAMES[@]}"
 	do
-		ADDON_URL="$(curl --silent "https://addons.mozilla.org/en-US/firefox/addon/${ADDON_NAME}/" |
+		ADDON_URL="$(curl -fSk "https://addons.mozilla.org/en-US/firefox/addon/${ADDON_NAME}/" |
 			   grep -o 'https://addons.mozilla.org/firefox/downloads/file/[^"]*')"
 
-		curl -sL "${ADDON_URL}" -o "extension.xpi"
+		curl -fSLk "${ADDON_URL}" -o "extension.xpi"
 
 		EXT_ID="$(unzip -p "extension.xpi" "manifest.json" | grep "\"id\"")"
 		EXT_ID="${EXT_ID%\"*}"
 		EXT_ID="${EXT_ID##*\"}"
 
-		mv extension.xpi "${EXT_DIR}/${EXT_ID}.xpi"
+		mv -fv extension.xpi "${EXT_DIR}/${EXT_ID}.xpi"
 	done
 }
 
 place_ublock_backup() {
 	move_file "ublock_backup.txt"
-
-        log_info g "The script has successfully finished."
 }
 
 main() {
@@ -240,7 +242,7 @@ main() {
 
 		log_info g "${done_message}"
 
-		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++))
+		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++)) || echo -e "Script finished successfully." || true
         done
 }
 
