@@ -335,11 +335,14 @@ main() {
 
 		log_info b "${description}"
 
-		"${function}"
+		"${function}" && log_info g "${done_message}"
 
-		log_info g "${done_message}"
+		[[ "${TASK_NUMBER}" -eq "${TOTAL_TASKS}" ]] && {
+			log_info g "All tasks completed."
+			break
+		}
 
-		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++)) || break
+		((TASK_NUMBER++))
         done
 }
 

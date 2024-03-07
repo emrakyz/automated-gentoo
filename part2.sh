@@ -823,6 +823,7 @@ create_boot_entry() {
 }
 
 configure_neovim() {
+	chown -R "${USERNAME}":"${USERNAME}" "${USER_HOME}"
         doas -u "${USERNAME}" nvim -u "${XDG_CONFIG_HOME}/nvim/init.vim" +PlugInstall +qall
 
         rm -rf "/root/.cache"
@@ -996,13 +997,17 @@ main() {
                         log_pid="${!}"
                 }
 
-		"${function}"
+		"${function}" && log_info g "${done_message}"
+
+		[[ "${TASK_NUMBER}" -eq "${TOTAL_TASKS}" ]] && {
+			log_info g "All tasks completed."
+			kill "${log_pid}" 2> "/dev/null" || true
+			break
+		}
 
 		kill "${log_pid}" 2> "/dev/null" || true
 
-		log_info g "${done_message}"
-
-		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++)) || break
+		((TASK_NUMBER++))
         done
 }
 
