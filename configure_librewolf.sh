@@ -113,6 +113,7 @@ download_file() {
 }
 
 retrieve_files() {
+	rm -rfv "${FILES_DIR}" "${HOME}/ublock_backup.txt"
 	mkdir -p "${FILES_DIR}"
 	local total="$((${#associate_files[@]}))"
 	local current="0"
@@ -124,16 +125,16 @@ retrieve_files() {
 		IFS=' ' read -r source dest _ <<< "${associate_files[${key}]}"
 		download_file "${source}" "${dest}"
 	done
+
+	echo ""
 }
 
 create_profile() {
-	rm -rfv "${HOME}/.librewolf" "${FILES_DIR}" "${HOME}/ublock_backup.txt"
+	rm -rfv "${HOME}/.librewolf"
 	librewolf --headless > "/dev/null" 2>&1 &
 	sleep "3"
 
-	while pidof librewolf
-		do killall "librewolf"
-	done
+	killall "librewolf"
 }
 
 initiate_vars() {
@@ -157,7 +158,7 @@ place_files() {
 
 run_arkenfox() {
 	chmod +x "${LIBREW_PROF_DIR}/updater.sh"
-	doas chown -Rv "${USERNAME}":"${USERNAME}" "${HOME}"
+	doas chown -R "${USERNAME}":"${USERNAME}" "${HOME}"
 
 	"${LIBREW_PROF_DIR}/updater.sh" -s -u
 }
@@ -195,6 +196,7 @@ install_bypass_paywalls() {
 
 place_ublock_backup() {
 	move_file "ublock_backup.txt"
+	rm -rfv "${HOME}/files"
 }
 
 main() {
@@ -250,13 +252,17 @@ main() {
                         log_pid="${!}"
                 }
 
-		"${function}"
+		"${function}" && log_info g "${done_message}"
+
+		[[ "${TASK_NUMBER}" -eq "${TOTAL_TASKS}" ]] && {
+			log_info g "All tasks completed."
+			kill "${log_pid}" 2> "/dev/null" || true
+			break
+		}
 
 		kill "${log_pid}" 2> "/dev/null" || true
 
-		log_info g "${done_message}"
-
-		[[ "${TASK_NUMBER}" -lt "${#task_order[@]}" ]] && ((TASK_NUMBER++)) || echo -e "Script finished successfully." || true
+		((TASK_NUMBER++))
         done
 }
 
