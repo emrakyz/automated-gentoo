@@ -3,10 +3,10 @@
 # This script installs and configures a fully functioning, completely
 # configured Gentoo Linux system. The script should be run after chrooting.
 
+set -Eeo pipefail
+
 source "urls.txt"
 source "filepaths.txt"
-
-set -Eeo pipefail
 
 GREEN='\e[1;92m' RED='\e[1;91m' BLUE='\e[1;94m'
 PURPLE='\e[1;95m' YELLOW='\e[1;93m' NC='\033[0m'
@@ -49,8 +49,7 @@ handle_error() {
         error_status="${?}"
         command_line="${BASH_COMMAND}"
         error_line="${BASH_LINENO[0]}"
-        log_info r "Error on line ${BLUE}$error_line${RED}: command ${BLUE}'${command_line}'${RED} exited with status: ${BLUE}$error_status" |
-                tee -a "error_log.txt"
+        log_info r "Error on line ${BLUE}$error_line${RED}: command ${BLUE}'${command_line}'${RED} exited with status: ${BLUE}$error_status"
 }
 
 trap 'handle_error' ERR
@@ -80,8 +79,9 @@ show_options_grid() {
 }
 
 select_timezone() {
-        read -r -d '' -a regions < <(find "/usr/share/zoneinfo"/* -maxdepth "0" -type "d" -exec basename {} \; |
-                grep -vE 'Arctic|Antarctica|Etc')
+	for i in "/usr/share/zoneinfo/"*; do
+		[[ -d "${i}" ]] && [[ ! "${i##*/}" =~ Arctic|Antarctica|Etc ]] && regions+=("${i##*/}")
+	done
 
         while true; do
                 show_options_grid "${regions[@]}"
@@ -96,7 +96,9 @@ select_timezone() {
                 echo -e "${RED}Declined. Restarting the process...${NC}"
         done
 
-        read -r -d '' -a cities < <(find "/usr/share/zoneinfo/${selected_region}"/* -maxdepth "0" -type "f" -exec basename {} \;)
+        for i in "/usr/share/zoneinfo/${selected_region}"/*; do
+		[[ -f "${i}" ]] && cities+=("${i##*/}")
+	done
 
         while true; do
                 show_options_grid "${cities[@]}"
@@ -147,15 +149,17 @@ select_external_hdd() {
 
                 while true; do
                         echo -e "${WHITE}Available Partitions:${NC}"
-                        IFS=$'\n' read -r -d '' -a partitions < <(lsblk -lnfo NAME,FSTYPE,SIZE |
-                                sed -E 's/^/\/dev\//
-					/vfat/d
-					\|'"${PARTITION_ROOT}"'|d
-					/^[^ ]*[a-z] /d
-					/^[^ ]*n[0-9][^p] /d
-					/^[^ ]+\s+[^ ]+\s*$/d')
-
-                        unset IFS
+			IFS=$'\n'
+			for i in $(lsblk -lnfo NAME,FSTYPE,SIZE); do
+				[[ ! "${i}" =~ .*vfat.* ]] &&
+				[[ ! "${i%% *}" =~ [a-z]$ ]] &&
+				i="/dev/${i}" &&
+				[[ ! "${i%% *}" == "${PARTITION_ROOT}" ]] &&
+				[[ ! "${i%% *}" =~ ^.*n[0-9]$ ]] &&
+				[[ ! "${i}" =~ ^[^\ ]+[\ ]+[^\ ]+$ ]] &&
+				partitions+=("${i}")
+			done
+			unset IFS
 
                         for i in "${!partitions[@]}"; do
                                 echo -e "${PURPLE}$((i + 1))) ${YELLOW}${partitions[i]}${NC}"
@@ -333,7 +337,7 @@ move_file() {
         local key="${1}"
         read -r _ download_path final_destination <<< "${associate_files[${key}]}"
 
-        mv "${download_path}" "${final_destination}"
+        mv -f "${download_path}" "${final_destination}"
 }
 
 update_progress() {
@@ -417,6 +421,7 @@ renew_env() {
 }
 
 configure_locales() {
+	return "0"
         sed -i "/#en_US.UTF/ s/#//g" "/etc/locale.gen"
 
         locale-gen
@@ -439,9 +444,9 @@ configure_flags() {
         echo "" >> "/etc/portage/make.conf"
 
         cat <<- EOF >> /etc/portage/make.conf
-	ACCEPT_KEYWORDS="~amd64"
-	RUBY_TARGETS="ruby32"
-	RUBY_SINGLE_TARGET="ruby32"
+	ACCEPT_KEYWORDS="amd64"
+	RUBY_TARGETS="ruby31"
+	RUBY_SINGLE_TARGET="ruby31"
 	PYTHON_TARGETS="python3_12"
 	PYTHON_SINGLE_TARGET="python3_12"
 	LUA_TARGETS="lua5-4"
@@ -457,7 +462,7 @@ configure_portage() {
 
                 echo "MAKEOPTS=\"-j$(($(nproc) - 2)) -l$(($(nproc) - 1))\""
 
-                eselect profile list 2>&1 | grep -q "*" | grep -q "musl" || echo 'PORTAGE_SCHEDULING_POLICY="idle"'
+                eselect profile list 2>&1 | grep "*" | grep -q "musl" || echo 'PORTAGE_SCHEDULING_POLICY="idle"'
 
                 echo "EMERGE_DEFAULT_OPTS=\"--jobs=1 --load-average=$(($(nproc) - 1)) --keep-going --verbose --quiet-build --with-bdeps=y --complete-graph=y --deep\""
 
@@ -516,17 +521,17 @@ build_clang_rust() {
 
         renew_env
 
-        MAKEOPTS="-j${NEW_MAKEOPTS} -l$(("${NEW_MAKEOPTS}" + 1 ))" emerge --oneshot "sys-devel/clang" "dev-libs/jsoncpp" "dev-libs/libuv" "sys-devel/llvm" "sys-devel/llvm-common" "sys-devel/llvm-toolchain-symlinks" "sys-devel/lld" "sys-libs/libunwind" "sys-libs/compiler-rt" "sys-libs/compiler-rt-sanitizers" "sys-devel/clang-common" "dev-build/cmake" "sys-devel/clang-runtime" "sys-devel/clang-toolchain-symlinks" "sys-libs/libomp" "dev-lang/rust" "dev-lang/perl" "dev-lang/python" "dev-build/ninja" "dev-build/samurai" "dev-python/sphinx" "dev-libs/libedit"
+        MAKEOPTS="-j${NEW_MAKEOPTS} -l$(("${NEW_MAKEOPTS}" + 1 ))" emerge --oneshot "sys-devel/clang" "dev-libs/jsoncpp" "dev-libs/libuv" "sys-devel/llvm" "sys-devel/llvm-common" "sys-devel/llvm-toolchain-symlinks" "sys-devel/lld" "sys-libs/llvm-libunwind" "sys-libs/compiler-rt" "sys-libs/compiler-rt-sanitizers" "sys-devel/clang-common" "dev-build/cmake" "sys-devel/clang-runtime" "sys-devel/clang-toolchain-symlinks" "sys-libs/libomp" "dev-lang/rust" "dev-lang/perl" "dev-lang/python" "app-alternatives/ninja" "dev-build/samurai" "dev-libs/libedit" "sys-libs/libcxx" "sys-libs/libcxxabi"
 
         emerge --depclean
 
-        eselect profile list 2>&1 | grep -q "*" | grep -q "musl" || {
+        eselect profile list 2>&1 | grep "*" | grep -q "musl" || {
 		emerge "sys-devel/gcc"
         	renew_env
         	emerge "sys-libs/glibc" "sys-devel/binutils"
 	} || log_info b "The user has the Musl profile. Skipping GCC setup."
 
-        emerge -e @world --exclude 'sys-devel/clang dev-libs/jsoncpp dev-libs/libuv sys-devel/llvm sys-devel/llvm-common sys-devel/llvm-toolchain-symlinks sys-devel/lld sys-libs/libunwind sys-libs/compiler-rt sys-libs/compiler-rt-sanitizers sys-devel/clang-common dev-build/cmake sys-devel/clang-runtime sys-devel/clang-toolchain-symlinks sys-libs/libomp dev-lang/rust dev-lang/perl dev-lang/python dev-build/ninja dev-build/samurai dev-python/sphinx dev-libs/libedit sys-devel/gcc sys-libs/glibc sys-devel/binutils'
+        emerge -e @world --exclude 'sys-devel/clang dev-libs/jsoncpp dev-libs/libuv sys-devel/llvm sys-devel/llvm-common sys-devel/llvm-toolchain-symlinks sys-devel/lld sys-libs/llvm-libunwind sys-libs/compiler-rt sys-libs/compiler-rt-sanitizers sys-devel/clang-common dev-build/cmake sys-devel/clang-runtime sys-devel/clang-toolchain-symlinks sys-libs/libomp dev-lang/rust dev-lang/perl dev-lang/python app-alternatives/ninja dev-build/samurai dev-libs/libedit sys-devel/gcc sys-libs/glibc sys-devel/binutils sys-libs/libcxx sys-libs/libcxxabi'
 }
 
 set_timezone() {
@@ -686,7 +691,7 @@ configure_accounts() {
 
         echo "permit nopass keepenv :root" >> "/etc/doas.conf"
 
-        useradd -mG wheel,audio,video,usb,input,portage,pipewire,seat,cron "${USERNAME}"
+        useradd -mG wheel,audio,video,usb,input,portage,pipewire,seat,cron,transmission "${USERNAME}"
 
         echo "${USERNAME}:${PASSWORD}" | chpasswd
 
@@ -703,8 +708,8 @@ configure_repos() {
         eselect repository enable "gentoo"
 
         eselect repository enable "guru"
-        eselect repository add "librewolf" git "https://codeberg.org/librewolf/gentoo.git"
-        eselect repository add "brave-overlay" git "https://gitlab.com/jason.oliveira/brave-overlay.git"
+        #eselect repository add "librewolf" git "https://codeberg.org/librewolf/gentoo.git"
+        #eselect repository add "brave-overlay" git "https://gitlab.com/jason.oliveira/brave-overlay.git"
 
         eselect repository create "local"
 
@@ -997,7 +1002,8 @@ main() {
                         log_pid="${!}"
                 }
 
-		"${function}" && log_info g "${done_message}"
+		"${function}"
+		log_info g "${done_message}"
 
 		[[ "${TASK_NUMBER}" -eq "${TOTAL_TASKS}" ]] && {
 			log_info g "All tasks completed."

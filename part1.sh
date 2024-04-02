@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -Eeo pipefail
+set -Eeuo pipefail
 
 GREEN='\e[1;92m' RED='\e[1;91m' BLUE='\e[1;94m'
 PURPLE='\e[1;95m' YELLOW='\e[1;93m' NC='\033[0m'
@@ -73,7 +73,13 @@ handle_disk() {
 	echo -e "${NC}"
 
 	[[ "${INPUT}" == "DELETE_EVERYTHING" ]] && {
-		mapfile -t BLOCK_DEVICES < <(lsblk -lnfo NAME,SIZE | sed 's/^/\/dev\//; /^[^ ]*[a-mo-z][0-9] /d')
+		IFS=$'\n'
+		for i in $(lsblk -lnfo NAME,FSTYPE,SIZE); do
+			i="/dev/${i}" &&
+			[[ ! "${i}" =~ ^[^\ ]*[a-mo-z][0-9][[:space:]] ]] &&
+			BLOCK_DEVICES+=("${i}")
+		done
+		unset IFS
 
                 while true; do
                         for i in "${!BLOCK_DEVICES[@]}"; do
@@ -86,7 +92,6 @@ handle_disk() {
 
 			CHOSEN_DEVICE="${CHOSEN_DEVICE%% *}"
                         echo -e "${GREEN}The chosen device is ${CHOSEN_DEVICE}"
-                        echo -en "Do you confirm? (y/n): ${WHITE}"
 
 			confirm_action && break
 
@@ -215,12 +220,16 @@ find_tarball_url() {
 }
 
 detect_root_partition() {
-        mapfile -t partitions < <(lsblk -lnfo NAME,FSTYPE,SIZE |
-                sed -E 's/^/\/dev\//
-		/ext4|f2fs/!d
-		/^[^ ]*[a-z] /d
-		/^[^ ]*n[0-9][^p] /d
-		/^[^ ]+\s+[^ ]+\s*$/d')
+	IFS=$'\n'
+	for i in $(lsblk -lnfo NAME,FSTYPE,SIZE); do
+		[[ ! "${i%% *}" =~ [a-z]$ ]] &&
+		i="/dev/${i}" &&
+		[[ "${i}" =~ .*(f2fs|ext4).* ]] &&
+		[[ ! "${i%% *}" =~ ^.*n[0-9]$ ]] &&
+		[[ ! "${i}" =~ ^[^\ ]+[\ ]+[^\ ]+$ ]] &&
+		partitions+=("${i}")
+	done
+	unset IFS
 
         [[ -z "${!partitions[*]}" ]] && {
                 log_info r "You do not have any eligible partition for ROOT."
@@ -335,7 +344,8 @@ main() {
 
 		log_info b "${description}"
 
-		"${function}" && log_info g "${done_message}"
+		"${function}"
+		log_info g "${done_message}"
 
 		[[ "${TASK_NUMBER}" -eq "${TOTAL_TASKS}" ]] && {
 			log_info g "All tasks completed."

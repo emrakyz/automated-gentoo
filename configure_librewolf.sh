@@ -74,7 +74,7 @@ update_associations
 
 move_file() {
 	local key="${1}"
-	local custom_destination="${2:-}"
+	#local custom_destination="${2:-}"
 	local download_path final_destination
 	IFS=' ' read -r _ download_path final_destination <<< "${associate_files[${key}]}"
 
@@ -252,7 +252,8 @@ main() {
                         log_pid="${!}"
                 }
 
-		"${function}" && log_info g "${done_message}"
+		"${function}"
+		log_info g "${done_message}"
 
 		[[ "${TASK_NUMBER}" -eq "${TOTAL_TASKS}" ]] && {
 			log_info g "All tasks completed."
