@@ -1,5 +1,10 @@
 #!/bin/bash
 
+[[ "$(id -u)" == "0" ]] && {
+        echo "This script can not be run as root." >&2
+        exit "0"
+}
+
 GREEN='\e[1;92m' RED='\e[1;91m' BLUE='\e[1;94m'
 PURPLE='\e[1;95m' YELLOW='\e[1;93m' NC='\033[0m'
 CYAN='\e[1;96m' WHITE='\e[1;97m'
@@ -10,7 +15,7 @@ URL_USER_OVERRIDES_JS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/u
 URL_USERCHROME_CSS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/userChrome.css"
 URL_USERCONTENT_CSS="https://raw.githubusercontent.com/emrakyz/dotfiles/main/userContent.css"
 URL_UBLOCK_BACKUP="https://raw.githubusercontent.com/emrakyz/dotfiles/main/ublock_backup.txt"
-URL_BYPASS_PAYWALLS="https://gitlab.com/magnolia1234/bpc-uploads/-/raw/master/bypass_paywalls_clean-3.5.8.0-custom.xpi"
+URL_BYPASS_PAYWALLS="https://github.com/bpc-clone/bypass-paywalls-firefox-clean/releases/download/latest/bypass_paywalls_clean-3.6.5.1-custom.xpi"
 
 FILES_DIR="${HOME}/files"
 
@@ -139,7 +144,10 @@ create_profile() {
 
 initiate_vars() {
 	LIBREW_CONFIG_DIR="${HOME}/.librewolf"
-	LIBREW_PROF_NAME="$(sed -n "/Default=.*.default-release/ s/.*=//p" "${LIBREW_CONFIG_DIR}/profiles.ini")"
+
+	LIBREW_PROF_NAME="$(sed -n "/Default=.*\(esr\|release\)$/ { s/Default=//p; q }" \
+		"${LIBREW_CONFIG_DIR}/profiles.ini")"
+
 	LIBREW_PROF_DIR="${LIBREW_CONFIG_DIR}/${LIBREW_PROF_NAME}"
 	LIBREW_CHROME_DIR="${LIBREW_PROF_DIR}/chrome"
 
@@ -231,8 +239,6 @@ main() {
         TOTAL_TASKS="${#tasks[@]}"
         TASK_NUMBER="1"
 
-        trap '[[ -n "${log_pid}" ]] && kill "${log_pid}" 2> "/dev/null"' EXIT SIGINT
-
         for function in "${task_order[@]}"; do
                 description="${tasks[${function}]}"
                 description="${description%%$'\n'*}"
@@ -241,27 +247,13 @@ main() {
 
 		log_info b "${description}"
 
-		[[ "${TASK_NUMBER}" -gt "2" ]] && {
-                        (
-                                sleep "60"
-                                while true; do
-                                        log_info c "${description}"
-                                        sleep "60"
-                                done
-                        ) &
-                        log_pid="${!}"
-                }
-
 		"${function}"
 		log_info g "${done_message}"
 
 		[[ "${TASK_NUMBER}" -eq "${TOTAL_TASKS}" ]] && {
 			log_info g "All tasks completed."
-			kill "${log_pid}" 2> "/dev/null" || true
 			break
 		}
-
-		kill "${log_pid}" 2> "/dev/null" || true
 
 		((TASK_NUMBER++))
         done
