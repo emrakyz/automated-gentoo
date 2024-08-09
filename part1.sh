@@ -5,7 +5,7 @@
         exit
 }
 
-set -Eeuo pipefail
+set -Eeo pipefail
 
 G='\e[1;92m' R='\e[1;91m' B='\e[1;94m'
 P='\e[1;95m' Y='\e[1;93m' N='\033[0m'
@@ -225,7 +225,7 @@ select_profile() {
 }
 
 find_tarball_url() {
-        URL_GENTOO_WEBSITE="https://www.gentoo.org/downloads"
+        URL_GENTOO_WEBSITE="https://www.gentoo.org/downloads/"
         URL_GENTOO_TARBALL="$(curl "${URL_GENTOO_WEBSITE}" | sed -n 's/.*href="\([^"]*'"${PROFILE}"'-[^"]*\.tar\.xz\)".*/\1/p')"
         echo ""
         echo -e "${W}The URL:${C} ${URL_GENTOO_TARBALL}${N}"
