@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-[ ${UID} = "0" ] || {
+[[ "${UID}" == "0" ]] || {
         echo "Root login required"
         exit
 }
@@ -12,7 +12,7 @@ P='\e[1;95m' Y='\e[1;93m' N='\033[0m'
 C='\e[1;96m' W='\e[1;97m'
 
 cleanup_logs() {
-        [ -f "logfile.txt" ] && {
+        [[ -f "logfile.txt" ]] && {
                 sed -E -i 's/\r//g
 			s/.*RUNNING.*//g' "logfile.txt"
 
@@ -370,8 +370,9 @@ main() {
 
                 ((TSKNO++))
         done
+
+        echo "Executing chroot..."
+        chroot "/mnt/gentoo" "/bin/bash" && kill -9 "0" > "/dev/null" 2>&1
 }
 
 main
-echo "Executing chroot..."
-chroot "/mnt/gentoo" "/bin/bash" && kill -9 "0"
